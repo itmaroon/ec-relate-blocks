@@ -1,0 +1,10 @@
+/**
+ * The following styles get applied inside the editor only.
+ *
+ * Replace them with your own styles or remove the file completely.
+ */
+@use "./reset.scss" as reset;
+
+.wp-block-itmar-ec-relate-bloks {
+	border: 1px dotted #f00;
+}

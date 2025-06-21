@@ -1,0 +1,70 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 2,
+	"name": "itmar/ec-relate-bloks",
+	"version": "0.1.0",
+	"title": "EC RELATE BLOCKS",
+	"category": "widgets",
+	"supports": {
+		"html": false
+	},
+	"attributes": {
+		"provider": {
+			"type": "string",
+			"default":"shopify"
+		},
+		"storeUrl": {
+			"type": "string"
+		},
+		"adminToken": {
+			"type": "string"
+		},
+		"storefrontToken": {
+			"type": "string"
+		},
+		"backgroundColor": {
+			"type": "string"
+		},
+		"backgroundGradient": {
+			"type": "string"
+		},
+		"default_val": {
+			"type": "object",
+			"default": {
+				"margin": {
+					"top": "10px",
+					"left": "10px",
+					"bottom": "10px",
+					"right": "10px"
+				},
+				"padding": {
+					"top": "10px",
+					"left": "10px",
+					"bottom": "10px",
+					"right": "10px"
+				}
+			}
+		},
+		"mobile_val": {
+			"type": "object",
+			"default": {
+				"margin": {
+					"top": "10px",
+					"left": "10px",
+					"bottom": "10px",
+					"right": "10px"
+				},
+				"padding": {
+					"top": "10px",
+					"left": "10px",
+					"bottom": "10px",
+					"right": "10px"
+				}
+			}
+		}
+	},
+	"textdomain": "ec-relate-bloks",
+	"editorScript": "file:./index.js",
+	"editorStyle": "file:./index.css",
+	"style": "file:./style-index.css"
+}

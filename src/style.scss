@@ -1,0 +1,535 @@
+/**
+ * The following styles get applied both on the front of your site
+ * and in the editor.
+ *
+ * Replace them with your own styles or remove the file completely.
+ */
+@use "./reset.scss" as reset;
+
+.wp-block-itmar-markdown-block {
+	font-size: clamp(4.5px, 1.67vw, 16px);
+	background-color: transparent;
+	//padding: 0 4em;
+
+
+	@include reset.mq(sp) {
+		//padding: 0 1em;
+		font-size: clamp(4.5px, 4.1vw, 16px);
+	}
+
+	//引用の共通設定
+	.wp-block-quote {
+		cite {
+			display: block;
+			width: fit-content;
+			margin-left: auto;
+			font-style: italic;
+		}
+	}
+
+	//リストの共通設定
+	ul.itmar_ex_block {
+		list-style: disc;
+
+		li {
+			list-style: disc;
+		}
+	}
+
+	ol.itmar_ex_block {
+		list-style: decimal;
+
+		li {
+			list-style: decimal;
+		}
+	}
+
+	.itmar_ex_block {
+
+		ul,
+		ol {
+
+			padding-left: 1.5em;
+		}
+
+		ul {
+			list-style: disc;
+
+			li {
+				list-style: disc;
+			}
+		}
+
+		ol {
+			list-style: decimal;
+
+			li {
+				list-style: decimal;
+			}
+		}
+	}
+
+	//Tabel OF Content（目次）
+	.table-of-contents {
+		padding: 1.5em 0.5em;
+		border-radius: 10px;
+
+		ul {
+			list-style-type: none !important;
+			position: relative;
+			padding-left: 2em;
+		}
+
+		li {
+			position: relative;
+			width: fit-content;
+
+			&:not(:first-child) {
+				margin-top: 1.5em;
+			}
+		}
+
+		a {
+			display: block;
+			text-decoration: none;
+			color: #000000;
+		}
+
+		&.md_toc_header {
+			margin-bottom: 3em;
+			border: #000 2px solid;
+
+			ul {
+				counter-reset: number;
+				/*数字をリセット*/
+				margin-top: 2em;
+				display: none;
+
+				@include reset.mq(sp) {
+					padding-left: 1em;
+				}
+
+				&::after {
+					content: "";
+					position: absolute;
+					width: 90%;
+					height: 1px;
+					left: 50%;
+					transform: translateX(-50%);
+					top: -1em;
+					background-color: #bdc0ce;
+				}
+			}
+
+			a {
+
+				&.lv-2,
+				&.lv-3 {
+					&::after {
+						content: "";
+						position: absolute;
+						width: 0;
+						height: 2px;
+						left: 2em;
+						bottom: 0em;
+						background-color: #bdc0ce;
+						transition: 0.3s;
+					}
+
+					&:hover::after {
+						width: 100%;
+					}
+				}
+
+				&.lv-2 {
+					font-size: 1.2em;
+					padding-left: 2.5em;
+
+					&::before {
+						position: absolute;
+						counter-increment: number;
+						content: counter(number);
+						/*以下数字のデザイン変える*/
+						display: inline-block;
+						background: #717579;
+						color: white;
+						font-family: 'Avenir', 'Arial Black', 'Arial', sans-serif;
+						font-weight: bold;
+						font-size: 1em;
+						border-radius: 50%;
+						left: 0;
+						width: 1.8em;
+						height: 1.8em;
+						line-height: 1.8em;
+						text-align: center;
+						/*以下 上下中央寄せのため*/
+						top: 50%;
+						transform: translateY(-50%);
+					}
+				}
+
+				&.lv-3 {
+					font-size: 1em;
+					//padding-left: 2em;
+					margin-left: 4em;
+
+					&::before {
+						content: "\f0da";
+						font-family: 'Font Awesome 6 Free';
+						font-weight: 900;
+						/* これを追加 */
+						position: absolute;
+						top: 50%;
+						transform: translateY(-50%);
+						left: 2em;
+						width: 1.2em;
+						height: 1.2em;
+						line-height: 1.2em;
+						text-align: center;
+					}
+
+					&::after {
+						left: 2em;
+					}
+
+					&:hover::after {
+						width: calc(100% - 2em);
+					}
+				}
+			}
+
+			h2 {
+				position: relative;
+				padding-left: 3em;
+				margin-left: 1em;
+				font-size: 1.5em;
+
+				@include reset.mq(sp) {
+					padding-left: 2.3em;
+					margin-left: 0;
+				}
+
+				&::before {
+					content: "\f0c9";
+					font-family: 'Font Awesome 6 Free';
+					font-weight: 900;
+					position: absolute;
+					top: 50%;
+					transform: translateY(-50%);
+					left: 0.6em;
+					width: 2em;
+					height: 2em;
+					line-height: 2em;
+					text-align: center;
+					background-color: #d1d1e2;
+					border-radius: 50%;
+
+					@include reset.mq(sp) {
+						left: 0em;
+					}
+				}
+
+				.btn_open {
+					&::before {
+						content: "\f107";
+						font-family: 'Font Awesome 6 Free';
+						font-weight: 900;
+						position: absolute;
+						top: 50%;
+						transform: translateY(-50%);
+						right: 2em;
+						width: 2em;
+						height: 2em;
+						line-height: 2em;
+						text-align: center;
+						background-color: #d1d1e2;
+						border-radius: 50%;
+						pointer-events: auto;
+						transition: all 0.3s ease 0s;
+
+						@include reset.mq(sp) {
+							right: 0em;
+						}
+					}
+
+					&:hover {
+						cursor: pointer;
+					}
+
+					&.is_open {
+						&::before {
+							transform: translateY(-50%) rotate(180deg);
+						}
+
+					}
+				}
+			}
+		}
+
+		&.md_toc_sidebar {
+			position: sticky;
+			top: 8em;
+			margin-top: 3em;
+			box-sizing: border-box;
+			padding: 0;
+
+			@include reset.mq(sp) {
+				position: relative;
+				top: 0;
+				margin-top: 2em;
+			}
+
+			h2 {
+				top: 0;
+				position: sticky;
+				box-sizing: border-box;
+				width: fit-content;
+				left: -2px;
+				font-size: 1.2em;
+				padding: 0.5em 1em 0.5em 3.5em;
+				margin: 0;
+				background-color: #03276985;
+
+				border-radius: 10px 10px 0 0;
+				color: #fff;
+
+				&::before {
+					content: "\f0c9";
+					font-family: 'Font Awesome 6 Free';
+					font-weight: 900;
+					position: absolute;
+					top: 50%;
+					transform: translateY(-50%);
+					left: 0.5em;
+					width: 1.5em;
+					height: 1.5em;
+					line-height: 1.5em;
+					text-align: center;
+					border: 1px #fff solid;
+					border-radius: 50%;
+				}
+			}
+
+			ul {
+				position: relative;
+				max-height: 70vh;
+				overflow-y: scroll;
+				border-radius: 0 10px 10px 10px;
+				border: #000 2px solid;
+				margin: 0;
+				padding: 1.5em 3em;
+			}
+
+			li {
+				a {
+
+					&.lv-2,
+					&.lv-3 {
+						font-size: 1em;
+
+						&::before {
+							content: '';
+							position: absolute;
+							display: block;
+							top: 50%;
+							transform: translateY(-50%);
+							left: -2.2em;
+							width: 1.5em;
+							height: 1.5em;
+							border-radius: 50%;
+							cursor: pointer;
+							box-shadow: hsla(0, 0%, 100%, .15) 0 1px 1px, inset hsla(0, 0%, 0%, .5) 0 0 0 1px;
+							background-color: hsla(0, 0%, 0%, .2);
+							background-size: 0;
+							background-image: -webkit-radial-gradient(hsla(200, 100%, 90%, 1) 0%, rgb(40, 127, 170) 30%, hsla(200, 100%, 60%, .3) 38%, hsla(200, 100%, 30%, 0) 70%);
+							background-repeat: no-repeat;
+							transition: background-position .15s cubic-bezier(.8, 0, 1, 1), transform .25s cubic-bezier(.8, 0, 1, 1);
+							outline: none;
+						}
+					}
+
+					&.lv-2 {
+						font-weight: 600;
+					}
+
+					&.lv-3 {
+						margin-left: 1.5em;
+
+						&::before {
+							left: -0.5em;
+							width: 1.2em;
+							height: 1.2em;
+						}
+					}
+				}
+
+				&.ready {
+					a {
+						&::before {
+							background-size: 100%;
+						}
+					}
+				}
+
+				&.check_prev {
+					a {
+						&::before {
+							background-position: 0 3em;
+						}
+					}
+				}
+
+				&.checked {
+					a {
+						&::before {
+							background-position: 0 0;
+						}
+					}
+				}
+
+				&.check_next {
+					a {
+						&::before {
+							background-position: 0 -3em;
+						}
+					}
+				}
+			}
+
+
+		}
+	}
+
+	.md_block_content {
+		display: flex;
+		flex-wrap: nowrap; // flexアイテムを折り返さないように指定
+
+		.main_md_content {
+			flex: 1 1 0; // 必要に応じて伸縮し、元のサイズは0%にすることで全幅を占有するようにする
+			min-width: 0;
+		}
+
+		.side_md_content {
+			flex: 0 0 30%; // 伸縮しないようにし、元のサイズは30%にする
+			margin-right: 2em;
+
+			@include reset.mq(sp) {
+				box-sizing: border-box;
+				margin-right: 0;
+				padding: 0 2em;
+				width: 100%;
+				position: fixed;
+				display: block;
+				top: 4em;
+				left: -100%;
+				height: auto;
+				max-height: 50%;
+				z-index: 40;
+				transition: all 0.5s ease 0s;
+
+				&.is-active {
+					transform: translateX(100%);
+				}
+			}
+		}
+	}
+
+	/*************
+	 ドロワーアイコン
+	 **************/
+	.drawer_icon {
+		display: none;
+		position: fixed;
+		top: 2em;
+		right: 1.6em;
+		width: 2.5em;
+		height: 2.5em;
+		border: 1px solid #000;
+		border-radius: 50%;
+		transition: all 0.5s ease 0s;
+		z-index: 110;
+
+		&:hover {
+			cursor: pointer;
+		}
+
+		.drawer_icon_bars {
+			position: relative;
+			height: 100%
+		}
+
+		.drawer_icon_bar1,
+		.drawer_icon_bar2,
+		.drawer_icon_bar3 {
+			position: absolute;
+			left: 15%;
+			width: 70%;
+			height: 3px;
+			background-color: #000;
+			opacity: 1;
+			border-radius: 3px;
+			transition: all 0.5s ease 0s;
+		}
+
+		.drawer_icon_bar1 {
+			top: 30%;
+		}
+
+		.drawer_icon_bar2 {
+			top: 48%;
+		}
+
+		.drawer_icon_bar3 {
+			top: 66%;
+		}
+
+		&.is-active {
+			border: 1px solid #fff;
+
+			.drawer_icon_bar1,
+			.drawer_icon_bar2,
+			.drawer_icon_bar3 {
+				background-color: #fff;
+			}
+
+			.drawer_icon_bar1 {
+				width: 70%;
+				top: 45%;
+				left: 15%;
+				transform: rotate(45deg);
+			}
+
+			.drawer_icon_bar2 {
+				display: none;
+			}
+
+			.drawer_icon_bar3 {
+				width: 70%;
+				top: 45%;
+				left: 15%;
+				transform: rotate(-45deg);
+			}
+		}
+	}
+
+	.drawer_background {
+		display: none;
+		position: fixed;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100vh;
+		z-index: 15;
+		background-color: transparent;
+		transition: all 0.5s ease 0s;
+
+		&.is-active {
+			display: block;
+			background-color: #3E3E3E;
+			opacity: 0.7;
+		}
+	}
+}
+.wp-block-post-content{
+	width: 100%;
+}

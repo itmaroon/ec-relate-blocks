@@ -1,0 +1,155 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "bffbac06eaf049e498752a595497ad30",
+    "packages": [
+        {
+            "name": "itmar/block-class-package",
+            "version": "v1.4.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/itmaroon/block-class-package.git",
+                "reference": "8ab78afa1307bbc6a7d1c6b308271d4658096de2"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/itmaroon/block-class-package/zipball/8ab78afa1307bbc6a7d1c6b308271d4658096de2",
+                "reference": "8ab78afa1307bbc6a7d1c6b308271d4658096de2",
+                "shasum": ""
+            },
+            "require": {
+                "itmar/loader-package": "^1.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Itmar\\BlockClassPackage\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "itmaroon",
+                    "email": "master@itmaroon.net"
+                }
+            ],
+            "description": "Gutenberg block class package",
+            "support": {
+                "issues": "https://github.com/itmaroon/block-class-package/issues",
+                "source": "https://github.com/itmaroon/block-class-package/tree/v1.4.1"
+            },
+            "time": "2025-04-27T06:05:15+00:00"
+        },
+        {
+            "name": "itmar/loader-package",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/itmaroon/loader-package.git",
+                "reference": "9b4ff033396e2c96b84b191b6f3e897f57400c2e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/itmaroon/loader-package/zipball/9b4ff033396e2c96b84b191b6f3e897f57400c2e",
+                "reference": "9b4ff033396e2c96b84b191b6f3e897f57400c2e",
+                "shasum": ""
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Itmar\\Autoloader\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "itmaroon",
+                    "email": "master@itmaroon.net"
+                }
+            ],
+            "description": "This package provides the ability to load classes via Composer's PSR-4 configuration without relying on the autoloader. This is useful when you want to avoid class conflicts between loaders in multiple plugins.",
+            "support": {
+                "issues": "https://github.com/itmaroon/loader-package/issues",
+                "source": "https://github.com/itmaroon/loader-package/tree/v1.1.0"
+            },
+            "time": "2025-05-03T12:36:23+00:00"
+        },
+        {
+            "name": "stripe/stripe-php",
+            "version": "v17.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/stripe/stripe-php.git",
+                "reference": "cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c",
+                "reference": "cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "php": ">=5.6.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "3.72.0",
+                "phpstan/phpstan": "^1.2",
+                "phpunit/phpunit": "^5.7 || ^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Stripe\\": "lib/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Stripe and contributors",
+                    "homepage": "https://github.com/stripe/stripe-php/contributors"
+                }
+            ],
+            "description": "Stripe PHP Library",
+            "homepage": "https://stripe.com/",
+            "keywords": [
+                "api",
+                "payment processing",
+                "stripe"
+            ],
+            "support": {
+                "issues": "https://github.com/stripe/stripe-php/issues",
+                "source": "https://github.com/stripe/stripe-php/tree/v17.3.0"
+            },
+            "time": "2025-05-28T18:59:29+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": [],
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": [],
+    "platform-dev": [],
+    "plugin-api-version": "2.6.0"
+}

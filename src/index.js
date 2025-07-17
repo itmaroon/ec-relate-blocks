@@ -18,6 +18,7 @@ registerBlockType(metadata.name, {
 		"We provide blocks to build EC sites in cooperation with various EC companies.",
 		"ec-relate-bloks",
 	),
+
 	edit: Edit,
 	save,
 });

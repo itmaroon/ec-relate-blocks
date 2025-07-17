@@ -9,9 +9,9 @@
     "html": false
   },
   "attributes": {
-    "provider": {
+    "productPost": {
       "type": "string",
-      "default": "shopify"
+      "default": "post"
     },
     "storeUrl": {
       "type": "string"
@@ -22,45 +22,23 @@
     "storefrontToken": {
       "type": "string"
     },
-    "backgroundColor": {
+    "callbackUrl": {
       "type": "string"
     },
-    "backgroundGradient": {
+    "stripeKey": {
       "type": "string"
     },
-    "default_val": {
-      "type": "object",
-      "default": {
-        "margin": {
-          "top": "10px",
-          "left": "10px",
-          "bottom": "10px",
-          "right": "10px"
-        },
-        "padding": {
-          "top": "10px",
-          "left": "10px",
-          "bottom": "10px",
-          "right": "10px"
-        }
-      }
+    "selectedFields": {
+      "type": "array",
+      "default": []
     },
-    "mobile_val": {
-      "type": "object",
-      "default": {
-        "margin": {
-          "top": "10px",
-          "left": "10px",
-          "bottom": "10px",
-          "right": "10px"
-        },
-        "padding": {
-          "top": "10px",
-          "left": "10px",
-          "bottom": "10px",
-          "right": "10px"
-        }
-      }
+    "numberOfItems": {
+      "type": "number",
+      "default": 3
+    },
+    "blocksAttributesArray": {
+      "type": "array",
+      "default": []
     }
   },
   "textdomain": "ec-relate-bloks",

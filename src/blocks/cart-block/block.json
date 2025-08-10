@@ -1,31 +1,15 @@
 {
 	"$schema": "https://schemas.wp.org/trunk/block.json",
 	"apiVersion": 2,
-	"name": "itmar/ec-relate-bloks",
+	"name": "itmar/cart-block",
 	"version": "0.1.0",
-	"title": "EC RELATE BLOCKS",
+	"title": "CART BLOCK",
 	"category": "widgets",
 	"supports": {
 		"html": false
 	},
 	"attributes": {
-		"productPost": {
-			"type": "string",
-			"default":"post"
-		},
-		"storeUrl": {
-			"type": "string"
-		},
-		"adminToken": {
-			"type": "string"
-		},
 		"storefrontToken": {
-			"type": "string"
-		},
-		"callbackUrl": {
-			"type": "string"
-		},
-		"stripeKey": {
 			"type": "string"
 		},
 		"selectedFields":{

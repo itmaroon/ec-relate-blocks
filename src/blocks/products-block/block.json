@@ -1,0 +1,54 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 2,
+	"name": "itmar/product-block",
+	"version": "0.1.0",
+	"title": "PRODUCT BLOCK",
+	"category": "widgets",
+	"supports": {
+		"html": false
+	},
+	"attributes": {
+		"productPost": {
+			"type": "string",
+			"default":"post"
+		},
+		"storeUrl": {
+			"type": "string"
+		},
+		"shopId": {
+			"type": "string"
+		},
+		"headlessId": {
+			"type": "string"
+		},
+		"adminToken": {
+			"type": "string"
+		},
+		"storefrontToken": {
+			"type": "string"
+		},
+		"callbackUrl": {
+			"type": "string"
+		},
+		"stripeKey": {
+			"type": "string"
+		},
+		"selectedFields":{
+			"type":"array",
+			"default":[]
+		},
+		"numberOfItems": {
+			"type": "number",
+			"default": 3
+		},
+		"blocksAttributesArray":{
+			"type":"array",
+			"default":[]
+		}
+	},
+	"textdomain": "ec-relate-bloks",
+	"editorScript": "file:./index.js",
+	"editorStyle": "file:./index.css",
+	"style": "file:./style-index.css"
+}

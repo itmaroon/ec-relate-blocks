@@ -51,6 +51,21 @@ add_action('enqueue_block_assets', function () {
 		);
 	}
 });
+//Shopify ログインの中継ページの生成
+function itmar_create_shopify_auth_callback_page()
+{
+	if (get_page_by_path('shopify-auth-callback')) {
+		return; // 既に存在
+	}
+	wp_insert_post([
+		'post_title'   => 'Shopify Auth Callback',
+		'post_name'    => 'shopify-auth-callback',
+		'post_status'  => 'publish',
+		'post_type'    => 'page',
+	]);
+}
+register_activation_hook(__FILE__, 'itmar_create_shopify_auth_callback_page');
+
 
 // REST APIエンドポイント登録（ShopifyのWebhook用など）
 add_action('rest_api_init', function () {
@@ -60,13 +75,14 @@ add_action('rest_api_init', function () {
 		'callback' => 'itmar_shopify_webhook_callback',
 		'permission_callback' => '__return_true',
 	]);
-	//顧客アカウント作成のエンドポイント
-	register_rest_route('itmar-ec-relate/v1', '/shopify-create-customer', [
+	//顧客アカウント作成のエンドポイント（フォームデータ）
+	register_rest_route('itmar-ec-relate/v1', '/shopify-create-customer-form', [
 		'methods' => 'POST',
-		'callback' => 'itmar_create_shopify_customer',
+		'callback' => 'itmar_shopify_customer_form',
 		'permission_callback' => '__return_true',
 	]);
-	//チェックアウトURL作出用エンドポイント
+
+	//チェックアウトURL作出用エンドポイント(カート作成・商品追加)
 	register_rest_route('itmar-ec-relate/v1', '/shopify-create-checkout', [
 		'methods' => 'POST',
 		'callback' => 'itmar_create_shopify_checkout',
@@ -117,12 +133,33 @@ add_action('rest_api_init', function () {
 		'permission_callback' => '__return_true',
 	]);
 	//shopifyユーザーの存在確認
-	register_rest_route('itmar-ec-relate/v1', '/shopify-validate-customer', [
+	// register_rest_route('itmar-ec-relate/v1', '/shopify-validate-customer', [
+	// 	'methods'  => 'POST',
+	// 	'callback' => 'itmar_validate_shopify_customer',
+	// 	'permission_callback' => '__return_true',
+	// ]);
+	//WordPressからのログアウト
+	register_rest_route('itmar-ec-relate/v1', '/wp-logout-redirect', [
 		'methods'  => 'POST',
-		'callback' => 'itmar_validate_shopify_customer',
+		'callback' => 'itmar_wp_logout_redirect',
 		'permission_callback' => '__return_true',
 	]);
+	//カスタマートークンの交換
+	register_rest_route('itmar-ec-relate/v1', '/customer-token-exchange', [
+		'methods'  => 'POST',
+		'callback' => 'itmar_exchange_shopify_token',
+		'permission_callback' => '__return_true', // 必要に応じて認可チェック
+	]);
+	//カートと顧客の紐づけ
+	register_rest_route('itmar-ec-relate/v1', '/shopify-cart-customer-bind', [
+		'methods'  => 'POST',
+		'callback' => 'itmar_bind_customer_to_cart',
+		'permission_callback' => function () {
+			return current_user_can('read'); // 適宜制限（もしくは true）
+		},
+	]);
 });
+
 
 //Shopifyからの通知をうける
 function itmar_shopify_webhook_callback(WP_REST_Request $request)
@@ -211,7 +248,7 @@ function itmar_save_tokens(WP_REST_Request $request)
 }
 
 //顧客登録処理
-function itmar_create_shopify_customer(WP_REST_Request $request)
+function itmar_shopify_customer_form(WP_REST_Request $request)
 {
 	// nonce チェック
 	$params = $request->get_json_params();
@@ -246,20 +283,49 @@ function itmar_create_shopify_customer(WP_REST_Request $request)
 				'success' => true,
 			), 200);
 		}
+		//ログインユーザー情報でshopify顧客を生成
+		$result = itmar_create_shopify_customer($user, true);
+	} else {
+		//フロントエンドで入力されたデータを取得
+		$first_name = sanitize_text_field($form_data['memberFirstName'] ?? '');
+		$last_name = sanitize_text_field($form_data['memberLastName'] ?? '');
+		$name = $form_data['memberDisplayName'] ? sanitize_text_field($form_data['memberFirstName'] ?? '') : $first_name . $last_name;
+		$password = $form_data['password'] ?? '';
+
+		// WP_User風のオブジェクトを生成
+		$user = (object) [
+			'ID'           => 0, // 仮登録など、まだユーザーIDがない場合は 0
+			'user_password'    => $password,
+			'user_email'   => $email,
+			'display_name' => $name,
+			'first_name'   => $first_name,
+			'last_name'    => $last_name,
+			'nickname'     => $name,
+			'user_nicename' => sanitize_title($name),
+			'user_url'     => '',
+			'user_registered' => current_time('mysql'),
+			'roles'        => ['subscriber'],
+		];
+		//shopify登録処理
+		$result = itmar_create_shopify_customer($user, false);
 	}
 
+	return new WP_REST_Response($result, 200);
+}
 
 
+//shopifyユーザーの登録処理
+function itmar_create_shopify_customer($user, $is_save)
+{
 	// Shopify 送信用 データ組立
 	$shop_domain = get_option('shopify_shop_domain');
 	$admin_token = get_option('shopify_admin_token');
 
 	$customer_payload = [
-		'first_name' => $user->first_name ?: ($form_data['first_name'] ?? ''),
-		'last_name'  => $user->last_name  ?: ($form_data['last_name']  ?? ''),
-		'email'      => $user->user_email ?: ($form_data['email']      ?? ''),
+		'first_name' => $user->first_name ?: '',
+		'last_name'  => $user->last_name  ?: '',
+		'email'      => $user->user_email ?: '',
 		'verified_email'   => true,
-		'send_email_invite' => true, // 招待メール送信
 		'tags'             => 'WP-Site-User', // 任意
 	];
 
@@ -277,144 +343,319 @@ function itmar_create_shopify_customer(WP_REST_Request $request)
 
 	$body = json_decode(wp_remote_retrieve_body($response), true);
 
-	//既に登録されている
+	//既に登録されているなどのエラー
 	if (!isset($body['customer']['id'])) {
-		return new WP_REST_Response(array(
+		return array(
 			'success' => false,
 			'data' => array(
 				'err_code' => 'email_exists'
 			)
-		), 200);
+		);
 	}
 
 	$customer_id = $body['customer']['id'];
 
-	//WordPress仮登録処理
-	// 必要に応じて仮登録のテーブル作成
-	itmar_create_pending_users_table_if_not_exists();
-	// DB保存
-	global $wpdb;
-	$table = $wpdb->prefix . 'pending_users';
+	if ($is_save) { //既にWordPressユーザー登録が終わっている
+		//shopifyで登録したユーザーIDをuser_metaに保存
+		update_user_meta($user->ID, 'shopify_customer_id', $customer_id);
+	} else { //WordPressへの仮登録
+		// 必要に応じて仮登録のテーブル作成
+		itmar_create_pending_users_table_if_not_exists();
+		// DB保存
+		global $wpdb;
+		$table = $wpdb->prefix . 'pending_users';
+		// トークン生成（64文字程度の一意な文字列）
+		$token = wp_generate_password(48, false, false);
 
-	$result = $wpdb->insert(
-		$table,
-		[
-			'email' => $email,
-			'name' => ($form_data['last_name'] ?? '') . ' ' . ($form_data['first_name'] ?? ''),
-			'password' => password_hash($form_data['password'], PASSWORD_DEFAULT), // パスワードはハッシュ化
-			'created_at' => current_time('mysql'),
-			'is_used' => $customer_id,
-		],
-		['%s', '%s', '%s', '%s', '%d']
-	);
+		$result = $wpdb->insert(
+			$table,
+			[
+				'email' => $user->user_email ?: '',
+				'name' => $user->display_name,
+				'first_name' => $user->first_name,
+				'last_name' => $user->last_name,
+				'password' => $user->user_password,
+				'token' => $token,
+				'created_at' => current_time('mysql'),
+				'is_used' => 0,
+			],
+			['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d']
+		);
 
-	if (!$result) {
-		return new WP_REST_Response(array(
-			'success' => false,
-			'data' => array(
-				'err_code' => 'save_error'
-			)
-		), 200);
+		if (!$result) {
+			wp_send_json_error([['err_code' => 'save_error']]);
+		}
 	}
 
-	// 招待メール送信
-	// $invite_response = wp_remote_post("https://{$shop_domain}/admin/api/2025-04/customers/{$customer_id}/send_invite.json", [
-	// 	'headers' => [
-	// 		'X-Shopify-Access-Token' => $admin_token,
-	// 		'Content-Type' => 'application/json',
-	// 	],
-	// ]);
-
-	// if (is_wp_error($invite_response)) {
-	// 	return new WP_REST_Response(array(
-	// 		'success' => false,
-	// 		'data' => array(
-	// 			'err_code' => 'invite_failed',
-	// 			'details' => $invite_response->get_error_message()
-	// 		)
-	// 	), 400);
-	// }
-
-	// $invite_body = json_decode(wp_remote_retrieve_body($invite_response), true);
-
-	// if (isset($invite_body['errors'])) {
-	// 	return new WP_REST_Response(array(
-	// 		'success' => false,
-	// 		'data' => array(
-	// 			'err_code' => 'invite_failed',
-	// 			'details' => $invite_body['errors']
-	// 		)
-	// 	), 200);
-	// }
-
-	// // 成功時
-	// return new WP_REST_Response(array(
-	// 	'success' => true,
-	// ), 200);
+	return array(
+		'success' => true,
+		'data' => array(
+			'customer_id' => $customer_id
+		)
+	);
 }
+
+
+
 //shopifyユーザーの存在確認
 function itmar_validate_shopify_customer()
 {
-	if (!is_user_logged_in()) {
-		return new WP_REST_Response([
-			'success' => false,
-			'message' => 'ログインしていません。',
-		], 200);
+	// nonce チェック
+	if (!wp_verify_nonce($_POST['nonce'], 'wp_rest')) {
+		wp_send_json_error(['message' => 'Nonce validation failed']);
+		exit;
 	}
 
-	$current_user_id = get_current_user_id();
-	$shopify_customer_id = get_user_meta($current_user_id, 'shopify_customer_id', true);
 
-	if (!$shopify_customer_id) {
-		return new WP_REST_Response([
-			'valid' => false,
-			'message' => 'shopify_customer_id が見つかりません',
-		], 200);
-	}
+	//WordPressユーザー
+	$wp_current_user = wp_get_current_user();
+	$wp_user_mail = $wp_current_user->user_email;
+	//WordPressユーザー情報からカート情報を取得
+	$shopify_cart_id = get_user_meta($wp_current_user->ID, 'shopify_cart_id', true);
 
-	$shop_domain = get_option('shopify_shop_domain');
-	$token = get_option('shopify_storefront_token');
+	//トークンの取得
+	$customer_token = sanitize_text_field($_POST['customerAccessToken'] ?? '');
 
-	$query = <<<GQL
+	if ($customer_token) {
+		//カスタマトークンによる顧客情報の取得
+		$shop_id   = isset($_POST['shop_id']) ? trim($_POST['shop_id']) : '';
+		//shopifyカスタマトークンによるカスタマ情報の取得
+		$endpoint = "https://shopify.com/{$shop_id}/account/customer/api/2025-04/graphql";
+
+		$query = <<<GQL
 query {
-  customer(id: "$shopify_customer_id") {
+  customer {
     id
-    email
+    emailAddress {
+      emailAddress
+    }
     firstName
     lastName
   }
 }
 GQL;
 
-	$response = wp_remote_post("https://{$shop_domain}/api/2025-04/graphql.json", [
-		'headers' => [
-			'Content-Type' => 'application/json',
-			'X-Shopify-Storefront-Access-Token' => $token,
-		],
-		'body' => json_encode(['query' => $query]),
-	]);
 
+		$response = wp_remote_post($endpoint, [
+			'headers' => [
+				'Content-Type'  => 'application/json',
+				'Authorization' => $customer_token,
+			],
+			'body' => json_encode([
+				'query' => $query,
+			]),
+		]);
+	}
+
+	//問い合わせ結果を返す
 	if (is_wp_error($response)) {
 		return new WP_REST_Response([
-			'valid' => false,
+			'success' => false,
 			'message' => 'Shopify APIへの接続に失敗しました',
 			'error' => $response->get_error_message(),
 		], 500);
 	}
 
 	$body = json_decode(wp_remote_retrieve_body($response), true);
-	$customer = $body['data']['customer'] ?? null;
+	$customer = $body['customer'] ?? $body['data']['customer'] ?? null;
 
 	if ($customer) {
-		return new WP_REST_Response([
+		// Shopify上、有効な顧客
+		if (!is_user_logged_in()) { //ログイン状態でない場合は仮登録状態かどうかを検査
+			$pending_user = itmar_pending_user_check($customer['emailAddress']['emailAddress']);
+			if ($pending_user) { //トークンから割り出されたユーザーと仮登録ユーザーが一致すれば本ユーザーにしてログインさせる
+				$res = itmar_process_token_registration($pending_user->token, true);
+				if ($res['success']) {
+					$is_login = is_user_logged_in();
+					wp_send_json_success([
+						'valid' => false,
+						'reload' => $is_login,
+						'message' => 'ユーザーの本登録成功'
+					]);
+
+					exit;
+				}
+			}
+		}
+		wp_send_json_success([
 			'valid' => true,
 			'customer' => $customer,
-		], 200);
+			'wp_user_id' => $wp_current_user->ID,
+			'wp_user_mail' => $wp_user_mail,
+			'cart_id' => $shopify_cart_id
+		]);
+		exit;
+	} else {
+		// 不存在
+		wp_send_json_success([
+			'valid' => false,
+			'wp_user_mail' => $wp_user_mail,
+			'message' => 'Shopify上の顧客情報が見つかりません'
+		]);
+		exit;
+	}
+}
+
+add_action('wp_ajax_shopify-validate-customer', 'itmar_validate_shopify_customer');
+add_action('wp_ajax_nopriv_shopify-validate-customer', 'itmar_validate_shopify_customer');
+
+
+//カスタマトークンでカートを紐づけする関数
+function itmar_bind_customer_to_cart(WP_REST_Request $request)
+{
+	// nonce チェック
+	$params = $request->get_json_params();
+	$nonce  = sanitize_text_field($params['nonce'] ?? '');
+
+	if (!wp_verify_nonce($nonce, 'wp_rest')) {
+		return new WP_Error('invalid_nonce', 'Invalid nonce', ['status' => 403]);
+	}
+
+	//パラメータ取得
+	$cartId = sanitize_text_field($params['cart_id'] ?? '');
+	$customerToken = sanitize_text_field($params['customer_token'] ?? '');
+
+	if (!$cartId || !$customerToken) {
+		return new WP_REST_Response(['error' => 'Missing parameters'], 400);
+	}
+
+	$query = <<<GRAPHQL
+    mutation cartBuyerIdentityUpdate(\$cartId: ID!, \$buyerIdentity: CartBuyerIdentityInput!) {
+      cartBuyerIdentityUpdate(cartId: \$cartId, buyerIdentity: \$buyerIdentity) {
+        cart {
+          id
+          buyerIdentity {
+            customer {
+              id
+              email
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  GRAPHQL;
+
+	$variables = [
+		'cartId' => $cartId,
+		'buyerIdentity' => [
+			'customerAccessToken' => $customerToken
+		]
+	];
+
+	$shop_domain = get_option('shopify_shop_domain');
+	$access_token   = get_option('shopify_storefront_token');
+
+	$endpoint = "https://{$shop_domain}/api/2025-04/graphql.json";
+
+
+	$response = wp_remote_post($endpoint, [
+		'headers' => [
+			'Content-Type' => 'application/json',
+			'X-Shopify-Storefront-Access-Token' => $access_token,
+		],
+		'body' => json_encode([
+			'query' => $query,
+			'variables' => $variables
+		]),
+		'timeout' => 20,
+	]);
+
+	if (is_wp_error($response)) {
+		return new WP_REST_Response(['error' => $response->get_error_message()], 500);
+	}
+
+	$body = json_decode(wp_remote_retrieve_body($response), true);
+	return new WP_REST_Response($body);
+}
+
+//WordPressログアウトのURL生成
+function itmar_wp_logout_redirect(WP_REST_Request $request)
+{
+	// nonce チェック
+	$params = $request->get_json_params();
+	$nonce  = sanitize_text_field($params['nonce'] ?? '');
+
+	if (!wp_verify_nonce($nonce, 'wp_rest')) {
+		return new WP_Error('invalid_nonce', 'Invalid nonce', ['status' => 403]);
+	}
+
+	$redirect_to = esc_url_raw($request->get_param('redirect_url'));
+	if (!$redirect_to) {
+		$redirect_to = home_url(); // フォールバック先
+	}
+	$logout_url = wp_logout_url($redirect_to);
+	// HTMLエンティティを戻す
+	$logout_url = html_entity_decode($logout_url);
+
+	wp_send_json_success([
+		'logout_url' => $logout_url,
+	]);
+}
+//カスタマートークンの発行
+function itmar_exchange_shopify_token(WP_REST_Request $request)
+{
+	// nonce チェック
+	$params = $request->get_json_params();
+	$nonce  = sanitize_text_field($params['nonce'] ?? '');
+
+	if (!wp_verify_nonce($nonce, 'wp_rest')) {
+		return new WP_Error('invalid_nonce', 'Invalid nonce', ['status' => 403]);
+	}
+	$client_id = isset($params['client_id']) ? trim($params['client_id']) : '';
+	$shop_id   = isset($params['shop_id']) ? trim($params['shop_id']) : '';
+	$code          = isset($params['code']) ? trim($params['code']) : '';
+	$code_verifier = isset($params['code_verifier']) ? trim($params['code_verifier']) : '';
+	$redirect_uri  = isset($params['redirect_uri']) ? esc_url_raw($params['redirect_uri']) : '';
+	if (!$code || !$code_verifier || !$redirect_uri || !$client_id || !$shop_id) {
+		return new WP_REST_Response([
+			'success' => false,
+			'message' => '必要なパラメータが不足しています',
+		], 400);
+	}
+
+
+
+	$token_endpoint = "https://shopify.com/authentication/{$shop_id}/oauth/token";
+
+	$response = wp_remote_post($token_endpoint, [
+		'headers' => [
+			'Content-Type' => 'application/x-www-form-urlencoded',
+			'Accept'        => 'application/json',
+		],
+		'body' => http_build_query([
+			'client_id'     => $client_id,
+			'code'          => $code,
+			'code_verifier' => $code_verifier,
+			'grant_type'    => 'authorization_code',
+			'redirect_uri'  => $redirect_uri,
+		]),
+	]);
+
+	if (is_wp_error($response)) {
+		return new WP_REST_Response([
+			'success' => false,
+			'message' => 'Shopifyトークン交換失敗',
+			'error'   => $response->get_error_message(),
+		], 500);
+	}
+
+	$body = json_decode(wp_remote_retrieve_body($response), true);
+
+	if (isset($body['error'])) {
+		return new WP_REST_Response([
+			'success' => false,
+			'error' => $body['error'],
+			'description' => $body['error_description'] ?? 'No description'
+		], 400);
 	}
 
 	return new WP_REST_Response([
-		'valid' => false,
-		'message' => '無効なshopify_customer_idです',
+		'success' => true,
+		'token'   => $body,
 	], 200);
 }
 
@@ -672,10 +913,12 @@ add_action('before_delete_post', function ($post_id) {
 function itmar_create_shopify_checkout(WP_REST_Request $request)
 {
 	$params = $request->get_json_params();
+	$lineId = sanitize_text_field($params['lineId'] ?? '');
 	$variantId = sanitize_text_field($params['productId'] ?? ''); // これは "gid://shopify/ProductVariant/..." の形式であること
 	$quantity = absint($params['quantity'] ?? 0);
 	$cartId = sanitize_text_field($params['cartId'] ?? null);
 	$mode = sanitize_text_field($params['mode'] ?? '');
+	$wp_user_id = sanitize_text_field($params['wp_user_id'] ?? '');
 
 	//モードによってカートの生成を変える
 	$shouldCreateNewCart = ($mode === 'soon_buy');
@@ -684,9 +927,10 @@ function itmar_create_shopify_checkout(WP_REST_Request $request)
 		$cartId = $_COOKIE['shopify_cart_id'] ?? null;
 	}
 
+
 	if ($cartId) {
-		// 既存カートに追加（cartLinesAdd）
-		if ($variantId) {
+		if ($mode === 'into_cart' && $variantId) {
+			// 既存カートに追加（cartLinesAdd）
 			$query = <<<GQL
 mutation {
   cartLinesAdd(
@@ -700,14 +944,41 @@ mutation {
   ) {
     cart {
       id
+	  buyerIdentity {
+		customer {
+			id
+			email
+		}
+	  }
       checkoutUrl
-	  lines(first: 50) {
-        edges {
-          node {
-            quantity
+	  lines(first: 100) {
+      edges {
+        node {
+		  id
+          quantity
+		  merchandise {
+            ... on ProductVariant {
+              id
+              title
+              price {
+                amount
+                currencyCode
+              }
+              product {
+                id
+                title
+                handle
+                featuredImage {
+                  url
+                  altText
+                }
+				
+              }
+            }
           }
         }
       }
+	}
     }
     userErrors {
       field
@@ -716,16 +987,80 @@ mutation {
   }
 }
 GQL;
+		} elseif ($mode === 'trush_out' && $lineId) {
+			// カートから削除（cartLinesRemove）
+			$query = <<<GQL
+mutation {
+  cartLinesRemove(
+    cartId: "$cartId",
+    lineIds: ["$lineId"]
+  ) {
+    cart {
+      id
+      checkoutUrl
+      lines(first: 100) {
+        edges {
+          node {
+            id
+            quantity
+            merchandise {
+              ... on ProductVariant {
+                id
+                title
+                price { amount currencyCode }
+                product { id title handle featuredImage { url altText } }
+              }
+            }
+          }
+        }
+      }
+      estimatedCost {
+        subtotalAmount { amount currencyCode }
+        totalAmount    { amount currencyCode }
+      }
+    }
+    userErrors { field message }
+  }
+}
+GQL;
 		} else {
+			//カートデータの読み込みのみ
 			$query = <<<GQL
 query {
   cart(id: "$cartId") {
     id
+	buyerIdentity {
+      customer {
+        id
+        email
+      }
+    }
     checkoutUrl
-    lines(first: 50) {
+    lines(first: 100) {
       edges {
         node {
+		  id
           quantity
+		  merchandise {
+            ... on ProductVariant {
+              id
+              title
+              price {
+                amount
+                currencyCode
+              }
+              product {
+                id
+                title
+                handle
+                featuredImage {
+                  url
+                  altText
+                }
+				
+              }
+            }
+          }
         }
       }
     }
@@ -797,8 +1132,13 @@ GQL;
 	// 「すぐに購入」でない場合
 	$itemCount = 0;
 	if ($mode !== 'soon_buy') {
-		//cartId を保存
-		setcookie('shopify_cart_id', $cart['id'], time() + WEEK_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN);
+		if ($wp_user_id) {
+			//cartId をuser_metaに保存
+			update_user_meta($wp_user_id, 'shopify_cart_id', $cart['id']);
+		} else {
+			//cartId をcookieに保存
+			setcookie('shopify_cart_id', $cart['id'], time() + WEEK_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN);
+		}
 		// 商品数を合計
 		if (!empty($cart['lines']['edges'])) {
 			foreach ($cart['lines']['edges'] as $edge) {
@@ -811,6 +1151,8 @@ GQL;
 	return new WP_REST_Response([
 		'success' => true,
 		'cartId' => $cart['id'],
+		'buyerId' => $cart['buyerIdentity']['customer'],
+		'cartContents' => $cart['lines']['edges'],
 		'checkoutUrl' => $cart['checkoutUrl'],
 		'itemCount' => $itemCount,
 	], 200);

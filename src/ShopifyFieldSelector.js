@@ -1,8 +1,12 @@
 import { PanelBody, ToggleControl } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 
-const ShopifyFieldSelector = ({ selectedFields, setSelectedFields }) => {
-	const choices = [
+const ShopifyFieldSelector = ({
+	fieldType,
+	selectedFields,
+	setSelectedFields,
+}) => {
+	const product_choices = [
 		{
 			key: "title",
 			label: __("Title", "ec-relate-bloks"),
@@ -95,6 +99,41 @@ const ShopifyFieldSelector = ({ selectedFields, setSelectedFields }) => {
 		},
 	];
 
+	const cart_choices = [
+		{
+			key: "title",
+			label: __("Title", "ec-relate-bloks"),
+			block: "itmar/design-title",
+		},
+		{
+			key: "featuredImage",
+			label: __("Featured Image", "ec-relate-bloks"),
+			block: "core/image",
+		},
+
+		{
+			key: "variants",
+			label: __("Variants (Options)", "ec-relate-bloks"),
+			block: "itmar/design-title",
+		},
+		{
+			key: "quantity",
+			label: __("Quantity", "ec-relate-bloks"),
+			block: "itmar/design-text-ctrl",
+		},
+
+		{
+			key: "price",
+			label: __("Price", "ec-relate-bloks"),
+			block: "itmar/design-title",
+		},
+		{
+			key: "compareAtPrice",
+			label: __("Compare at Price (Original)", "ec-relate-bloks"),
+			block: "itmar/design-title",
+		},
+	];
+
 	const handleToggle = (fieldKey, checked, label, block) => {
 		if (checked) {
 			if (!selectedFields.some((item) => item.key === fieldKey)) {
@@ -109,9 +148,11 @@ const ShopifyFieldSelector = ({ selectedFields, setSelectedFields }) => {
 		return selectedFields.some((item) => item.key === fieldKey);
 	};
 
+	const choices = fieldType === "product" ? product_choices : cart_choices;
+
 	return (
 		<PanelBody
-			title={__("Display Shopify Fields", "ec-relate-bloks")}
+			title={__("Display Fields", "ec-relate-bloks")}
 			initialOpen={true}
 		>
 			{choices.map((choice) => (

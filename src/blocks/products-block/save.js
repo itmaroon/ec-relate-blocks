@@ -1,10 +1,12 @@
 import { useBlockProps, InnerBlocks } from "@wordpress/block-editor";
 
 export default function save({ attributes }) {
-	const { numberOfItems, selectedFields } = attributes;
+	const { shopId, headlessId, numberOfItems, selectedFields } = attributes;
 	return (
 		<div
 			{...useBlockProps.save()}
+			data-shop_id={shopId}
+			data-headless_id={headlessId}
 			data-number_of_items={numberOfItems}
 			data-selected_fields={JSON.stringify(selectedFields)}
 		>

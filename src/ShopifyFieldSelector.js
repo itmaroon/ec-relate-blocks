@@ -48,6 +48,11 @@ const ShopifyFieldSelector = ({
 			block: "itmar/design-title",
 		},
 		{
+			key: "quantityAvailable",
+			label: __("Quantity Available", "ec-relate-bloks"),
+			block: "itmar/design-title",
+		},
+		{
 			key: "price",
 			label: __("Price", "ec-relate-bloks"),
 			block: "itmar/design-title",
@@ -120,6 +125,11 @@ const ShopifyFieldSelector = ({
 			key: "quantity",
 			label: __("Quantity", "ec-relate-bloks"),
 			block: "itmar/design-text-ctrl",
+		},
+		{
+			key: "quantityAvailable",
+			label: __("Quantity Available", "ec-relate-bloks"),
+			block: "itmar/design-title",
 		},
 
 		{

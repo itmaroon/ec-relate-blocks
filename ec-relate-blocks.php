@@ -913,6 +913,7 @@ add_action('before_delete_post', function ($post_id) {
 function itmar_create_shopify_checkout(WP_REST_Request $request)
 {
 	$params = $request->get_json_params();
+
 	$lineId = sanitize_text_field($params['lineId'] ?? '');
 	$variantId = sanitize_text_field($params['productId'] ?? ''); // これは "gid://shopify/ProductVariant/..." の形式であること
 	$quantity = absint($params['quantity'] ?? 0);
@@ -920,12 +921,68 @@ function itmar_create_shopify_checkout(WP_REST_Request $request)
 	$mode = sanitize_text_field($params['mode'] ?? '');
 	$wp_user_id = sanitize_text_field($params['wp_user_id'] ?? '');
 
+	$formDataObj = [];
+	if (!empty($params['form_data'])) {
+		$decoded = json_decode($params['form_data'], true); // 文字列→配列
+		if (is_array($decoded)) {
+			foreach ($decoded as $line) {
+				$id = isset($line['id']) ? sanitize_text_field($line['id']) : '';
+				$quantity = isset($line['quantity']) ? intval($line['quantity']) : 0;
+
+				// 必要ならIDのパターンをバリデーション
+				if (! preg_match('#^gid://shopify/CartLine/[a-z0-9\-]+#i', $id)) {
+					continue; // 不正な形式ならスキップ
+				}
+
+				$formDataObj[] = [
+					'id' => $id,
+					'quantity' => $quantity,
+				];
+			}
+		}
+	}
+
 	//モードによってカートの生成を変える
 	$shouldCreateNewCart = ($mode === 'soon_buy');
 	//すぐに買うでなく、クライアントからcartIDの指定がない
 	if (!$shouldCreateNewCart && !$cartId) {
 		$cartId = $_COOKIE['shopify_cart_id'] ?? null;
 	}
+	//カート情報の取得用クエリ
+	$CART_FIELDS = <<<GQL
+id
+buyerIdentity { customer { id email } }
+checkoutUrl
+lines(first: 100) {
+  edges {
+    node {
+      id
+      quantity
+      merchandise {
+        ... on ProductVariant {
+          id
+          title
+		  quantityAvailable
+          price { amount currencyCode }
+          product {
+            id
+            title
+            handle
+            featuredImage { url altText }
+          }
+        }
+      }
+    }
+  }
+}
+estimatedCost {
+  subtotalAmount { amount currencyCode }
+  totalAmount    { amount currencyCode }
+  totalTaxAmount { amount currencyCode }
+  totalDutyAmount { amount currencyCode }
+}
+GQL;
+
 
 
 	if ($cartId) {
@@ -942,48 +999,8 @@ mutation {
       }
     ]
   ) {
-    cart {
-      id
-	  buyerIdentity {
-		customer {
-			id
-			email
-		}
-	  }
-      checkoutUrl
-	  lines(first: 100) {
-      edges {
-        node {
-		  id
-          quantity
-		  merchandise {
-            ... on ProductVariant {
-              id
-              title
-              price {
-                amount
-                currencyCode
-              }
-              product {
-                id
-                title
-                handle
-                featuredImage {
-                  url
-                  altText
-                }
-				
-              }
-            }
-          }
-        }
-      }
-	}
-    }
-    userErrors {
-      field
-      message
-    }
+    cart { {$CART_FIELDS} }
+    userErrors { field message }      
   }
 }
 GQL;
@@ -995,31 +1012,29 @@ mutation {
     cartId: "$cartId",
     lineIds: ["$lineId"]
   ) {
-    cart {
-      id
-      checkoutUrl
-      lines(first: 100) {
-        edges {
-          node {
-            id
-            quantity
-            merchandise {
-              ... on ProductVariant {
-                id
-                title
-                price { amount currencyCode }
-                product { id title handle featuredImage { url altText } }
-              }
-            }
-          }
-        }
-      }
-      estimatedCost {
-        subtotalAmount { amount currencyCode }
-        totalAmount    { amount currencyCode }
-      }
-    }
+    cart { {$CART_FIELDS} }
     userErrors { field message }
+  }
+}
+GQL;
+		} elseif ($mode === 'calc_again') {
+			$linesStr = implode(",\n", array_map(function ($line) {
+				return sprintf(
+					'{ id: "%s", quantity: %d }',
+					addslashes($line['id']),
+					intval($line['quantity'])
+				);
+			}, $formDataObj));
+			// カートから削除（cartLinesRemove）
+			$query = <<<GQL
+mutation {
+  cartLinesUpdate(
+    cartId: "$cartId",
+    lines: [{$linesStr}]
+  ) {
+    cart { {$CART_FIELDS} }
+    userErrors { field, message, code }
+    warnings { message }
   }
 }
 GQL;
@@ -1028,42 +1043,7 @@ GQL;
 			$query = <<<GQL
 query {
   cart(id: "$cartId") {
-    id
-	buyerIdentity {
-      customer {
-        id
-        email
-      }
-    }
-    checkoutUrl
-    lines(first: 100) {
-      edges {
-        node {
-		  id
-          quantity
-		  merchandise {
-            ... on ProductVariant {
-              id
-              title
-              price {
-                amount
-                currencyCode
-              }
-              product {
-                id
-                title
-                handle
-                featuredImage {
-                  url
-                  altText
-                }
-				
-              }
-            }
-          }
-        }
-      }
-    }
+    {$CART_FIELDS}
   }
 }
 GQL;
@@ -1082,21 +1062,8 @@ mutation {
       ]
     }
   ) {
-    cart {
-      id
-      checkoutUrl
-	  lines(first: 50) {
-        edges {
-          node {
-            quantity
-          }
-        }
-      }
-    }
-    userErrors {
-      field
-      message
-    }
+    cart { {$CART_FIELDS} }
+    userErrors { field message }
   }
 }
 GQL;
@@ -1120,6 +1087,8 @@ GQL;
 	$data = json_decode(wp_remote_retrieve_body($response), true);
 	$cart = $data['data']['cartCreate']['cart']
 		?? $data['data']['cartLinesAdd']['cart']
+		?? $data['data']['cartLinesRemove']['cart']
+		?? $data['data']['cartLinesUpdate']['cart']
 		?? $data['data']['cart']
 		?? null;
 
@@ -1153,6 +1122,7 @@ GQL;
 		'cartId' => $cart['id'],
 		'buyerId' => $cart['buyerIdentity']['customer'],
 		'cartContents' => $cart['lines']['edges'],
+		'estimatedCost' => $cart['estimatedCost'],
 		'checkoutUrl' => $cart['checkoutUrl'],
 		'itemCount' => $itemCount,
 	], 200);
@@ -1394,7 +1364,6 @@ function itmar_shopify_products_filtered($request)
 		'descriptionHtml' => 'descriptionHtml',
 		'vendor' => 'vendor',
 		'productType' => 'productType',
-		'availableForSale' => 'availableForSale',
 		'tags' => 'tags',
 		'onlineStoreUrl' => 'onlineStoreUrl',
 		'createdAt' => 'createdAt',
@@ -1435,6 +1404,8 @@ variants(first: 10) {
     node {
 		id
 		title
+		availableForSale
+		quantityAvailable
       	price {
         	amount
         	currencyCode

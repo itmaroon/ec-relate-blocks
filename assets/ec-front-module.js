@@ -123,14 +123,33 @@ jQuery(function ($) {
 		if (match) return match[2];
 		return null;
 	}
+	//Design Titleのテキスト編集関数
+	function textEmbed(embedText, embedDom) {
+		const displayText =
+			embedText != null
+				? displayFormated(
+						embedText,
+						embedDom.data("user_format"),
+						embedDom.data("free_format"),
+						embedDom.data("decimal"),
+				  )
+				: null;
+		embedDom.find("h1,h2,h3,h4,h5,h6").each(function () {
+			const $div = $(this).find("div");
+			if ($div.length > 0) {
+				$div.text(displayText);
+			}
+		});
+	}
 
 	//カート情報の更新
 	function updateCartInfo(
 		uniqueId,
 		wp_user_id,
-		itemCount,
-		checkoutUrl,
 		rawCartId,
+		itemCount,
+		estimatedCost,
+		checkoutUrl,
 		cartContents,
 	) {
 		const $cart_icon = $(
@@ -139,13 +158,8 @@ jQuery(function ($) {
 
 		if ($cart_icon.length === 0) return;
 
-		// h1〜h6 を探して、その中の div に itemCount を設定
-		$cart_icon.find("h1,h2,h3,h4,h5,h6").each(function () {
-			const $div = $(this).find("div");
-			if ($div.length > 0) {
-				$div.text(itemCount);
-			}
-		});
+		//itemCount を設定
+		textEmbed(itemCount, $cart_icon);
 
 		//カートの表示ダイアログ
 		const modal_cart_id = $cart_icon.find(".modal_open_btn").data("modal_id");
@@ -156,10 +170,29 @@ jQuery(function ($) {
 		//カートデータの書き換え
 		replaceContent(cartContents, wp_user_id, rawCartId, cart_block);
 
-		// a要素のhrefを書き換える
-		// $target.find("a").each(function () {
-		// 	$(this).attr("href", checkoutUrl);
-		// });
+		// CheckOutのURLを書き換える
+		const checkoutBtn = modal_cart_dlg.find('button[data-key="go_checkout"]');
+		checkoutBtn.attr("data-selected_page", checkoutUrl);
+
+		//合計額の設定
+		const subTotal = modal_cart_dlg.find(
+			'div[data-unique_id="subtotalAmount"]',
+		);
+		textEmbed(estimatedCost.subtotalAmount.amount, subTotal);
+
+		const taxTotal = modal_cart_dlg.find(
+			'div[data-unique_id="totalTaxAmount"]',
+		);
+		textEmbed(
+			estimatedCost.totalTaxAmount?.amount
+				? estimatedCost.totalTaxAmount?.amount
+				: 0,
+			taxTotal,
+		);
+
+		const total = modal_cart_dlg.find('div[data-unique_id="totalAmount"]');
+
+		textEmbed(estimatedCost.totalAmount.amount, total);
 	}
 
 	//カートのバインド処理関数
@@ -178,6 +211,7 @@ jQuery(function ($) {
 			const mergedItems = res.cartContents.map((edge) => {
 				const lineId = edge.node.id;
 				const price = edge.node.merchandise.price;
+				const quantityAvailable = edge.node.merchandise.quantityAvailable;
 				const product = edge.node.merchandise.product;
 				const quantity = edge.node.quantity;
 				// priceとproductを1つのオブジェクトに合体
@@ -186,21 +220,23 @@ jQuery(function ($) {
 					lineId,
 					price, // priceプロパティを追加
 					quantity, // quantityプロパティを追加
+					quantityAvailable, //在庫数量を追加
 				};
 			});
 			//カート情報の更新
 			updateCartInfo(
 				"swiper_cart_info",
 				wp_user_id,
-				res.itemCount,
 				rawCartId,
+				res.itemCount,
+				res.estimatedCost,
 				res.checkoutUrl,
 				mergedItems,
 			);
 		} else {
 			alert("カート追加に失敗しました。");
 		}
-		console.log(res.buyerId);
+		console.log(accessToken);
 		//カスタマトークンがありカートと紐づけ未了の場合は紐づけ
 		if (accessToken && !res.buyerId) {
 			const targetUrl =
@@ -234,85 +270,86 @@ jQuery(function ($) {
 
 		//ユーザー情報の確認とカートの処理
 		(async () => {
-			//try {
-			if (shopId && accessToken) {
-				console.log("token exist!!");
-				//const targetUrl ="/wp-json/itmar-ec-relate/v1/shopify-validate-customer";
-				const targetUrl = "/wp-admin/admin-ajax.php";
-				const postData = {
-					action: "shopify-validate-customer",
-					shop_id: shopId,
-					customerAccessToken: accessToken,
-					nonce: itmar_option.nonce,
-				};
-				const res = await sendRegistrationRequest(targetUrl, postData, false);
-				console.log(res);
-				//本登録の成功(Shopifyログインによるユーザー登録)
-				if (res.success && res.data?.reload) {
-					//一旦リロード
-					window.location.reload();
-				}
+			try {
+				if (shopId && accessToken) {
+					console.log("token exist!!");
+					//const targetUrl ="/wp-json/itmar-ec-relate/v1/shopify-validate-customer";
+					const targetUrl = "/wp-admin/admin-ajax.php";
+					const postData = {
+						action: "shopify-validate-customer",
+						shop_id: shopId,
+						customerAccessToken: accessToken,
+						nonce: itmar_option.nonce,
+					};
+					const res = await sendRegistrationRequest(targetUrl, postData, false);
+					console.log(res);
+					//本登録の成功(Shopifyログインによるユーザー登録)
+					if (res.success && res.data?.reload) {
+						//一旦リロード
+						window.location.reload();
+					}
 
-				//ログインユーザー情報の突き合わせ
-				if (res.success && res.valid) {
-					const wp_user_email = res.wp_user_mail;
+					//ログインユーザー情報の突き合わせ
+					if (res.success && res.valid) {
+						const wp_user_email = res.wp_user_mail;
 
-					const shopify_customer_email = res.customer.emailAddress.emailAddress;
-					if (wp_user_email === shopify_customer_email) {
-						//メールアドレスが一致すればIDをセット
-						wp_user_id = res.wp_user_id;
-						bind_cart_id = res.cart_id;
+						const shopify_customer_email =
+							res.customer.emailAddress.emailAddress;
+						if (wp_user_email === shopify_customer_email) {
+							//メールアドレスが一致すればIDをセット
+							wp_user_id = res.wp_user_id;
+							bind_cart_id = res.cart_id;
+						}
 					}
 				}
+
+				//ひな型部分は非表示
+				main_block.find(".unit_hide").hide();
+
+				//取得するフィールド
+				const selected_fields = main_block.data("selected_fields"); // [{ key, label, block }]
+				if (!selected_fields) return;
+				const field_keys = selected_fields.map((f) => f.key);
+
+				//取得する商品数
+				const itemNum = main_block.data("number_of_items");
+
+				const productData = await apiFetch({
+					path: "/itmar-ec-relate/v1/get-product-info",
+					method: "POST",
+					data: {
+						fields: field_keys,
+						itemNum: itemNum,
+					},
+				});
+
+				//商品情報の表示
+
+				replaceContent(productData, wp_user_id, rawCartId, main_block);
+
+				//カート情報の取得とそれに基づくカートアイコンのレンダリング
+				console.log(getCookie("shopify_cart_id"));
+
+				rawCartId = bind_cart_id
+					? bind_cart_id //WordPressとShopifyのログインユーザーが一致してかつバインドされたカートIDが存在する
+					: getCookie("shopify_cart_id"); //cookieにカート情報がある（匿名カート）
+
+				//カート情報があれば以降の処理
+				if (rawCartId) {
+					const cart_res = await cart_bind(rawCartId, wp_user_id);
+					console.log(cart_res);
+				}
+			} catch (err) {
+				alert("サーバー通信エラーが発生しました。");
+				console.error(err, xhr.responseText);
 			}
-
-			//ひな型部分は非表示
-			main_block.find(".unit_hide").hide();
-
-			//取得するフィールド
-			const selected_fields = main_block.data("selected_fields"); // [{ key, label, block }]
-			if (!selected_fields) return;
-			const field_keys = selected_fields.map((f) => f.key);
-
-			//取得する商品数
-			const itemNum = main_block.data("number_of_items");
-
-			const productData = await apiFetch({
-				path: "/itmar-ec-relate/v1/get-product-info",
-				method: "POST",
-				data: {
-					fields: field_keys,
-					itemNum: itemNum,
-				},
-			});
-
-			//商品情報の表示
-
-			replaceContent(productData, wp_user_id, rawCartId, main_block);
-
-			//カート情報の取得とそれに基づくカートアイコンのレンダリング
-			console.log(getCookie("shopify_cart_id"));
-
-			rawCartId = bind_cart_id
-				? bind_cart_id //WordPressとShopifyのログインユーザーが一致してかつバインドされたカートIDが存在する
-				: getCookie("shopify_cart_id"); //cookieにカート情報がある（匿名カート）
-
-			//カート情報があれば以降の処理
-			if (rawCartId) {
-				const cart_res = await cart_bind(rawCartId, wp_user_id);
-				console.log(cart_res);
-			}
-			// } catch (err) {
-			// 	alert("サーバー通信エラーが発生しました。");
-			// 	console.error(err, xhr.responseText);
-			// }
 		})();
 	});
 
 	//カートのデータを操作する要求を出す
 	function cartControle(
 		submitter,
-		tragetForm,
+		targetForm,
 		cartId,
 		lineId,
 		wp_user_id,
@@ -325,12 +362,27 @@ jQuery(function ($) {
 
 		const targetUrl = "/wp-json/itmar-ec-relate/v1/shopify-create-checkout";
 		//フォーム内のインプットデータ(現時点は未使用)
-		const formDataObj = {};
-		tragetForm.serializeArray().forEach((item) => {
-			formDataObj[item.name] = item.value;
-		});
+		const formDataObj = targetForm
+			.find('[class*="unit_design_"]') // 条件1: クラス名に unit_design_ を含む
+			.filter(function () {
+				return $(this).closest(".template_unit").length === 0; // 先祖に .template_unit がない
+			})
+			.map(function () {
+				const $el = $(this);
+				const id = $el.find('button[data-key="trush_out"]').data("line-id"); // data-line-id 属性
+
+				const quantity =
+					parseInt($el.find(".sp_field_quantity input").val(), 10) || 0;
+
+				return {
+					id: id,
+					quantity: quantity,
+				};
+			})
+			.get(); // jQueryのmap結果を純配列に変換
+
 		const postData = {
-			form_data: formDataObj,
+			form_data: JSON.stringify(formDataObj),
 			lineId: lineId,
 			productId: variantId,
 			quantity: quantity,
@@ -338,6 +390,7 @@ jQuery(function ($) {
 			wp_user_id: wp_user_id,
 			nonce: itmar_option.nonce,
 		};
+
 		// REST APIへPOST送信
 		(async () => {
 			try {
@@ -350,11 +403,16 @@ jQuery(function ($) {
 						alert("チェックアウトURLの取得に失敗しました。");
 						console.error("Unexpected response:", res);
 					}
-				} else if (key === "into_cart") {
+				} else if (
+					key === "into_cart" ||
+					key === "trush_out" ||
+					key === "calc_again"
+				) {
 					if (res.success) {
 						const mergedItems = res.cartContents.map((edge) => {
 							const lineId = edge.node.id;
 							const price = edge.node.merchandise.price;
+							const quantityAvailable = edge.node.merchandise.quantityAvailable;
 							const product = edge.node.merchandise.product;
 							const quantity = edge.node.quantity;
 							// priceとproductを1つのオブジェクトに合体
@@ -363,6 +421,7 @@ jQuery(function ($) {
 								lineId,
 								price, // priceプロパティを追加
 								quantity, // quantityプロパティを追加
+								quantityAvailable, //在庫数量を追加
 							};
 						});
 						//カート情報の更新
@@ -371,14 +430,13 @@ jQuery(function ($) {
 							wp_user_id,
 							cartId,
 							res.itemCount,
+							res.estimatedCost,
 							res.checkoutUrl,
 							mergedItems,
 						);
 					} else {
-						alert("カート追加に失敗しました。");
+						alert("カートの作成に失敗しました");
 					}
-				} else if (key === "trush_out") {
-					console.log("ゴミ箱が押されました。");
 				}
 			} catch (err) {
 				alert("サーバー通信エラーが発生しました。");
@@ -392,6 +450,41 @@ jQuery(function ($) {
 		try {
 			//テンプレート以外のユニットを一旦クリア
 			target_block.children().not(".template_unit").remove();
+
+			//カートIDを生成
+			const cartId = decodeURIComponent(rawCartId);
+			//target_blockの親がフォームの場合はここでsubmit処理を定義
+			const $parentForm = target_block.closest("form");
+
+			$parentForm
+				.off("submit.uniqueParentForm")
+				.on("submit.uniqueParentForm", function (e) {
+					e.preventDefault();
+					const $form = $(this);
+					const submitter = e.originalEvent?.submitter;
+
+					const $btn = $(submitter);
+					const lineId = $btn.data("lineId");
+					const variantId = $btn.data("variantId");
+					const quantity = Number($btn.data("quantity")) || 1;
+
+					cartControle(
+						submitter,
+						$form,
+						cartId,
+						lineId,
+						wp_user_id,
+						variantId,
+						quantity,
+					);
+				})
+				.on(
+					"click",
+					'button[type="submit"], input[type="submit"]',
+					function () {
+						$(this.form).data("submitter", this);
+					},
+				);
 
 			//productDataの内容によってレンダリングされたDOM要素からデザインの要素を選択
 
@@ -424,28 +517,13 @@ jQuery(function ($) {
 
 					// テンプレートの親にフォームがある場合
 					const $parentForm = $template.closest("form");
-					$parentForm
-						.off("submit.uniqueParentForm")
-						.on("submit.uniqueParentForm", function (e) {
-							// 親フォームのsubmit処理
-							e.preventDefault();
-
-							//クリックされたボタンを取得
-							const submitter = e.originalEvent?.submitter;
-							const cartId = decodeURIComponent(rawCartId);
-
-							if (submitter) {
-								cartControle(
-									submitter,
-									$childForm,
-									cartId,
-									lineId,
-									wp_user_id,
-									variantId,
-									quantity,
-								);
-							}
+					if ($parentForm) {
+						$template.find('[type="submit"]').attr({
+							"data-line-id": product.lineId,
+							"data-variant-id": variantId,
+							"data-quantity": quantity,
 						});
+					}
 
 					//テンプレートの子にフォームがある場合
 					const $childForm = $template.find("form").first();
@@ -463,6 +541,7 @@ jQuery(function ($) {
 									cartControle(
 										submitter,
 										$childForm,
+										cartId,
 										lineId,
 										wp_user_id,
 										variantId,

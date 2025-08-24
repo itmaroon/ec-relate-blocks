@@ -36,6 +36,7 @@ add_action('init', function () use ($block_entry) {
 	wp_localize_script('itmar-script-handle', 'itmar_option', array(
 		'nonce' => wp_create_nonce('wp_rest'),
 		'adminPostUrl' => esc_url(admin_url('admin-post.php')),
+		'isLoggedIn' => is_user_logged_in(),
 	));
 });
 //独自JSのエンキュー
@@ -132,12 +133,7 @@ add_action('rest_api_init', function () {
 		'callback' => 'itmar_stripe_create_customer',
 		'permission_callback' => '__return_true',
 	]);
-	//shopifyユーザーの存在確認
-	// register_rest_route('itmar-ec-relate/v1', '/shopify-validate-customer', [
-	// 	'methods'  => 'POST',
-	// 	'callback' => 'itmar_validate_shopify_customer',
-	// 	'permission_callback' => '__return_true',
-	// ]);
+
 	//WordPressからのログアウト
 	register_rest_route('itmar-ec-relate/v1', '/wp-logout-redirect', [
 		'methods'  => 'POST',
@@ -406,20 +402,23 @@ function itmar_validate_shopify_customer()
 		exit;
 	}
 
-
 	//WordPressユーザー
 	$wp_current_user = wp_get_current_user();
 	$wp_user_mail = $wp_current_user->user_email;
 	//WordPressユーザー情報からカート情報を取得
 	$shopify_cart_id = get_user_meta($wp_current_user->ID, 'shopify_cart_id', true);
 
-	//トークンの取得
-	$customer_token = sanitize_text_field($_POST['customerAccessToken'] ?? '');
+	// 入力
+	$shop_id        = isset($_POST['shop_id']) ? trim($_POST['shop_id']) : '';
+	$client_id      = isset($_POST['client_id']) ? trim($_POST['client_id']) : ''; // refresh時に使用
+	$customer_token = sanitize_text_field($_POST['customerAccessToken'] ?? '');    // ※名称は誤解を避け改名推奨
 
-	if ($customer_token) {
-		//カスタマトークンによる顧客情報の取得
-		$shop_id   = isset($_POST['shop_id']) ? trim($_POST['shop_id']) : '';
-		//shopifyカスタマトークンによるカスタマ情報の取得
+	if (! $shop_id) {
+		wp_send_json_error(['message' => 'shop_id is required']);
+		exit;
+	}
+
+	$fetch_customer = function ($access_token) use ($shop_id) {
 		$endpoint = "https://shopify.com/{$shop_id}/account/customer/api/2025-04/graphql";
 
 		$query = <<<GQL
@@ -436,64 +435,160 @@ query {
 GQL;
 
 
-		$response = wp_remote_post($endpoint, [
+		$res = wp_remote_post($endpoint, [
 			'headers' => [
 				'Content-Type'  => 'application/json',
-				'Authorization' => $customer_token,
+				'Authorization' => $access_token,
 			],
 			'body' => json_encode([
 				'query' => $query,
 			]),
+			'timeout' => 20,
 		]);
+		return $res;
+	};
+
+	// 1回目: クライアント送信トークンで試行
+	if (! $customer_token) {
+		// トークン未提示 → リフレッシュへ（なければ login_required）
+		$response = null;
+	} else {
+		$response = $fetch_customer($customer_token);
 	}
 
+	$need_refresh = false;
 	//問い合わせ結果を返す
 	if (is_wp_error($response)) {
-		return new WP_REST_Response([
-			'success' => false,
-			'message' => 'Shopify APIへの接続に失敗しました',
-			'error' => $response->get_error_message(),
-		], 500);
-	}
-
-	$body = json_decode(wp_remote_retrieve_body($response), true);
-	$customer = $body['customer'] ?? $body['data']['customer'] ?? null;
-
-	if ($customer) {
-		// Shopify上、有効な顧客
-		if (!is_user_logged_in()) { //ログイン状態でない場合は仮登録状態かどうかを検査
-			$pending_user = itmar_pending_user_check($customer['emailAddress']['emailAddress']);
-			if ($pending_user) { //トークンから割り出されたユーザーと仮登録ユーザーが一致すれば本ユーザーにしてログインさせる
-				$res = itmar_process_token_registration($pending_user->token, true);
-				if ($res['success']) {
-					$is_login = is_user_logged_in();
-					wp_send_json_success([
-						'valid' => false,
-						'reload' => $is_login,
-						'message' => 'ユーザーの本登録成功'
-					]);
-
-					exit;
-				}
-			}
-		}
-		wp_send_json_success([
-			'valid' => true,
-			'customer' => $customer,
-			'wp_user_id' => $wp_current_user->ID,
-			'wp_user_mail' => $wp_user_mail,
-			'cart_id' => $shopify_cart_id
-		]);
-		exit;
+		// ネットワーク系は即エラー返却でもよいが、ここでは refresh 試行に寄せる
+		$need_refresh = true;
 	} else {
-		// 不存在
+		$code = intval(wp_remote_retrieve_response_code($response));
+		$body = json_decode(wp_remote_retrieve_body($response), true);
+		$customer = $body['data']['customer'] ?? null;
+
+		// 401/403 or エラーメッセージから失効判定（invalid_token等）
+		if (
+			$code === 401 || $code === 403 ||
+			isset($body['errors']) ||
+			(isset($body['error']) && stripos($body['error'], 'invalid') !== false)
+		) {
+			$need_refresh = true;
+		} elseif ($customer) {
+			wp_send_json_success([
+				'valid'       => true,
+				'customer'    => $customer,
+				'wp_user_id'  => $wp_current_user->ID,
+				'wp_user_mail' => $wp_user_mail,
+				'cart_id'     => $shopify_cart_id,
+				// 必要なら新しい access_token をここで返す設計にしてもOK
+			]);
+			exit;
+		} else {
+			// 200でも customer=null は、権限/スコープ/URL誤りの可能性
+			// ここで無闇に再試行せず、まずrefresh→再試行に回す
+			$need_refresh = true;
+		}
+	}
+
+	// === リフレッシュ試行（サーバー保存の refresh_token 前提） ===
+	if ($need_refresh) {
+		$user_id = $wp_current_user->ID ?: get_current_user_id();
+		$stored_refresh = itmar_get_encrypted_user_meta($user_id, '_itmar_shopify_refresh_token');
+		if (! $stored_refresh || ! $client_id) {
+			// リフレッシュ不可 → 再ログイン要求を返す
+			wp_send_json_success([
+				'valid'          => false,
+				'login_required' => true,
+				'message'        => 'Re-login required'
+			]);
+			exit;
+		}
+
+		$token_endpoint = "https://shopify.com/authentication/{$shop_id}/oauth/token";
+		$refresh_res = wp_remote_post($token_endpoint, [
+			'headers' => [
+				'Content-Type' => 'application/x-www-form-urlencoded',
+				'Accept'       => 'application/json',
+			],
+			'body' => http_build_query([
+				'client_id'     => $client_id,
+				'grant_type'    => 'refresh_token',
+				'refresh_token' => $stored_refresh,
+			]),
+			'timeout' => 20,
+		]);
+
+		if (is_wp_error($refresh_res)) {
+			wp_send_json_success([
+				'valid'          => false,
+				'login_required' => true,
+				'message'        => 'Token refresh failed'
+			]);
+			exit;
+		}
+
+		$rb = json_decode(wp_remote_retrieve_body($refresh_res), true);
+		if (isset($rb['error'])) {
+			// refresh無効 → サーバー側refresh破棄して再ログインへ
+			delete_user_meta($user_id, '_itmar_shopify_refresh_token');
+			wp_send_json_success([
+				'valid'          => false,
+				'login_required' => true,
+				'message'        => 'Session expired'
+			]);
+			exit;
+		}
+	}
+	// ローテーション保存
+	if (! empty($rb['refresh_token'])) {
+		itmar_save_encrypted_user_meta($user_id, '_itmar_shopify_refresh_token', $rb['refresh_token']);
+	}
+
+	$new_access = $rb['access_token'] ?? '';
+	if (! $new_access) {
 		wp_send_json_success([
-			'valid' => false,
-			'wp_user_mail' => $wp_user_mail,
-			'message' => 'Shopify上の顧客情報が見つかりません'
+			'valid'          => false,
+			'login_required' => true,
+			'message'        => 'No access_token in refresh response'
 		]);
 		exit;
 	}
+
+	// === 新トークンで再試行 ===
+	$response2 = $fetch_customer($new_access);
+	if (is_wp_error($response2)) {
+		wp_send_json_success([
+			'valid'          => false,
+			'login_required' => true,
+			'message'        => 'Shopify API error after refresh'
+		]);
+		exit;
+	}
+
+	$code2 = intval(wp_remote_retrieve_response_code($response2));
+	$body2 = json_decode(wp_remote_retrieve_body($response2), true);
+	$customer2 = $body2['data']['customer'] ?? null;
+
+	if ($code2 === 200 && $customer2) {
+		wp_send_json_success([
+			'valid'        => true,
+			'customer'     => $customer2,
+			'wp_user_id'   => $wp_current_user->ID,
+			'wp_user_mail' => $wp_user_mail,
+			'cart_id'      => $shopify_cart_id,
+			// フロントで短期利用したいなら返す：
+			'access_token' => $new_access,
+		]);
+		exit;
+	}
+
+	// ここまで来たら再ログインへ
+	wp_send_json_success([
+		'valid'          => false,
+		'login_required' => true,
+		'message'        => 'Re-login required'
+	]);
+	exit;
 }
 
 add_action('wp_ajax_shopify-validate-customer', 'itmar_validate_shopify_customer');
@@ -595,6 +690,7 @@ function itmar_wp_logout_redirect(WP_REST_Request $request)
 		'logout_url' => $logout_url,
 	]);
 }
+
 //カスタマートークンの発行
 function itmar_exchange_shopify_token(WP_REST_Request $request)
 {
@@ -605,8 +701,10 @@ function itmar_exchange_shopify_token(WP_REST_Request $request)
 	if (!wp_verify_nonce($nonce, 'wp_rest')) {
 		return new WP_Error('invalid_nonce', 'Invalid nonce', ['status' => 403]);
 	}
+
 	$client_id = isset($params['client_id']) ? trim($params['client_id']) : '';
 	$shop_id   = isset($params['shop_id']) ? trim($params['shop_id']) : '';
+	$user_mail   = isset($params['user_mail']) ? trim($params['user_mail']) : '';
 	$code          = isset($params['code']) ? trim($params['code']) : '';
 	$code_verifier = isset($params['code_verifier']) ? trim($params['code_verifier']) : '';
 	$redirect_uri  = isset($params['redirect_uri']) ? esc_url_raw($params['redirect_uri']) : '';
@@ -633,6 +731,7 @@ function itmar_exchange_shopify_token(WP_REST_Request $request)
 			'grant_type'    => 'authorization_code',
 			'redirect_uri'  => $redirect_uri,
 		]),
+		'timeout' => 20,
 	]);
 
 	if (is_wp_error($response)) {
@@ -653,11 +752,116 @@ function itmar_exchange_shopify_token(WP_REST_Request $request)
 		], 400);
 	}
 
-	return new WP_REST_Response([
-		'success' => true,
-		'token'   => $body,
-	], 200);
+	//ログイン状態を確認して、仮登録状態であれば本登録処理
+	$user_id = get_current_user_id();
+	if (! $user_id) {
+		$user_obj = itmar_pending_user_check($user_mail);
+		if ($user_obj) {
+			$res = itmar_process_token_registration($user_obj->token, true);
+			$user_id = $res['user_ID'];
+		} else {
+			return new WP_REST_Response(['success' => false, 'message' => 'Require WP login'], 401);
+		}
+	}
+
+	// refresh_token をサーバー側に保存（暗号化）
+	if ($user_id && !empty($body['refresh_token'])) {
+		itmar_save_encrypted_user_meta($user_id, '_itmar_shopify_refresh_token', $body['refresh_token']);
+	}
+
+
+	// フロントへは access_token など短命情報のみ
+	$now = time();
+	$expires_in  = isset($body['expires_in']) ? intval($body['expires_in']) : 0;
+	$expires_at  = $expires_in ? $now + $expires_in : 0;
+
+	$payload = [
+		'access_token' => $body['access_token'] ?? null,
+		'id_token'     => $body['id_token'] ?? null, // 返らないケースもある
+		'token_type'   => $body['token_type'] ?? 'Bearer',
+		'expires_in'   => $expires_in,
+		'expires_at'   => $expires_at,
+	];
+	return new WP_REST_Response(['success' => true, 'token' => $payload], 200);
 }
+
+//トークンのリフレッシュ
+function itmar_refresh_shopify_token(WP_REST_Request $request)
+{
+	// nonce チェック
+	$params = $request->get_json_params();
+	$nonce  = sanitize_text_field($params['nonce'] ?? '');
+	if (! wp_verify_nonce($nonce, 'wp_rest')) {
+		return new WP_Error('invalid_nonce', 'Invalid nonce', ['status' => 403]);
+	}
+
+	$client_id = isset($params['client_id']) ? trim($params['client_id']) : '';
+	$shop_id   = isset($params['shop_id'])   ? trim($params['shop_id'])   : '';
+	if (!$client_id || !$shop_id) {
+		return new WP_REST_Response(['success' => false, 'message' => 'client_id / shop_id 必須'], 400);
+	}
+
+	$user_id = get_current_user_id();
+	if (! $user_id) {
+		return new WP_REST_Response(['success' => false, 'message' => 'Require WP login'], 401);
+	}
+
+	$stored_refresh = itmar_get_encrypted_user_meta($user_id, '_itmar_shopify_refresh_token');
+	if (! $stored_refresh) {
+		// サイレント再認証や再ログインに誘導
+		return new WP_REST_Response(['success' => false, 'login_required' => true], 428);
+	}
+
+	$token_endpoint = "https://shopify.com/authentication/{$shop_id}/oauth/token";
+	$response = wp_remote_post($token_endpoint, [
+		'headers' => [
+			'Content-Type' => 'application/x-www-form-urlencoded',
+			'Accept'        => 'application/json',
+		],
+		'body' => http_build_query([
+			'client_id'     => $client_id,
+			'grant_type'    => 'refresh_token',
+			'refresh_token' => $stored_refresh,
+		]),
+		'timeout' => 20,
+	]);
+
+	if (is_wp_error($response)) {
+		return new WP_REST_Response(['success' => false, 'message' => 'refresh失敗', 'error' => $response->get_error_message()], 500);
+	}
+
+	$body = json_decode(wp_remote_retrieve_body($response), true);
+	if (isset($body['error'])) {
+		// 無効になった refresh → サーバー側を破棄して再ログイン誘導
+		delete_user_meta($user_id, '_itmar_shopify_refresh_token');
+		return new WP_REST_Response([
+			'success' => false,
+			'login_required' => true,
+			'error' => $body['error'],
+			'description' => $body['error_description'] ?? ''
+		], 428);
+	}
+
+	// refresh token ローテーション
+	if (! empty($body['refresh_token'])) {
+		itmar_save_encrypted_user_meta($user_id, '_itmar_shopify_refresh_token', $body['refresh_token']);
+	}
+
+	$now = time();
+	$expires_in = isset($body['expires_in']) ? intval($body['expires_in']) : 0;
+	$expires_at = $expires_in ? $now + $expires_in : 0;
+
+	$payload = [
+		'access_token' => $body['access_token'] ?? null,
+		'id_token'     => $body['id_token'] ?? null, // 返らない場合もある
+		'token_type'   => $body['token_type'] ?? 'Bearer',
+		'expires_in'   => $expires_in,
+		'expires_at'   => $expires_at,
+	];
+
+	return new WP_REST_Response(['success' => true, 'token' => $payload], 200);
+}
+
 
 //Wordpressからshopifyに商品を登録する
 add_action('save_post', function ($post_id, $post) {
@@ -942,10 +1146,8 @@ function itmar_create_shopify_checkout(WP_REST_Request $request)
 		}
 	}
 
-	//モードによってカートの生成を変える
-	$shouldCreateNewCart = ($mode === 'soon_buy');
-	//すぐに買うでなく、クライアントからcartIDの指定がない
-	if (!$shouldCreateNewCart && !$cartId) {
+	//カート情報がないときはクッキーに残っていないか（ゲストカート）がないか確認
+	if (!$cartId) {
 		$cartId = $_COOKIE['shopify_cart_id'] ?? null;
 	}
 	//カート情報の取得用クエリ
@@ -982,8 +1184,6 @@ estimatedCost {
   totalDutyAmount { amount currencyCode }
 }
 GQL;
-
-
 
 	if ($cartId) {
 		if ($mode === 'into_cart' && $variantId) {
@@ -1096,7 +1296,7 @@ GQL;
 		return new WP_REST_Response([
 			'success' => false,
 			'message' => 'カートの作成に失敗しました',
-		], 500);
+		], 200);
 	}
 	// 「すぐに購入」でない場合
 	$itemCount = 0;
@@ -1478,4 +1678,44 @@ GQL;
 	$products = $body['data']['products']['edges'] ?? [];
 
 	return array_map(fn($product) => $product['node'], $products);
+}
+
+/** --- 簡易暗号化ユーティリティ（AES-256-GCM） --- */
+function itmar_crypto_key()
+{
+	// WPの秘密鍵から32byteキーを導出
+	return hash('sha256', wp_salt('secure_auth'), true);
+}
+function itmar_encrypt($plaintext)
+{
+	$key = itmar_crypto_key();
+	$iv  = random_bytes(12);
+	$tag = '';
+	$cipher = openssl_encrypt($plaintext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+	return base64_encode(json_encode([
+		'iv' => base64_encode($iv),
+		'tag' => base64_encode($tag),
+		'ct' => base64_encode($cipher),
+	]));
+}
+function itmar_decrypt($bundle_b64)
+{
+	$key = itmar_crypto_key();
+	$bundle = json_decode(base64_decode($bundle_b64), true);
+	if (!is_array($bundle) || empty($bundle['iv']) || empty($bundle['tag']) || empty($bundle['ct'])) return null;
+	$iv  = base64_decode($bundle['iv']);
+	$tag = base64_decode($bundle['tag']);
+	$ct  = base64_decode($bundle['ct']);
+	return openssl_decrypt($ct, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+}
+function itmar_save_encrypted_user_meta($user_id, $key, $plaintext)
+{
+	$enc = itmar_encrypt($plaintext);
+	update_user_meta($user_id, $key, $enc);
+}
+function itmar_get_encrypted_user_meta($user_id, $key)
+{
+	$enc = get_user_meta($user_id, $key, true);
+	if (! $enc) return null;
+	return itmar_decrypt($enc);
 }

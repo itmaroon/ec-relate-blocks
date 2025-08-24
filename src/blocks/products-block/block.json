@@ -38,6 +38,9 @@
 			"type":"array",
 			"default":[]
 		},
+		"cartIconId": {
+			"type": "string"
+		},
 		"numberOfItems": {
 			"type": "number",
 			"default": 3

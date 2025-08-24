@@ -40,6 +40,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		callbackUrl,
 		stripeKey,
 		selectedFields,
+		cartIconId,
 		numberOfItems,
 		blocksAttributesArray,
 	} = attributes;
@@ -169,6 +170,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	const [admin_editing, setAdminValue] = useState(adminToken);
 	const [callback_editing, setCallbackValue] = useState(callbackUrl);
 	const [stripe_key_editing, setStripeKeyValue] = useState(stripeKey);
+	const [cart_id_editing, setCartIdValue] = useState(cartIconId);
 	//Noticeのインデックス保持
 	const [noticeClickedIndex, setNoticeClickedIndex] = useState(null);
 	//貼付け中のフラグ保持
@@ -292,6 +294,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 							max={30}
 							min={1}
 							onChange={(val) => setAttributes({ numberOfItems: val })}
+						/>
+					</PanelRow>
+					<PanelRow className="itmar_post_blocks_pannel">
+						<TextControl
+							label={__("Cart Icon ID", "ec-relate-bloks")}
+							value={cart_id_editing}
+							onChange={(newVal) => setCartIdValue(newVal)} // 一時的な編集値として保存する
+							onBlur={() => {
+								setAttributes({ cartIconId: cart_id_editing });
+							}}
 						/>
 					</PanelRow>
 				</PanelBody>

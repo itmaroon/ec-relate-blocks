@@ -34,6 +34,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		productPost,
 		storeUrl,
 		shopId,
+		channelName,
 		headlessId,
 		adminToken,
 		storefrontToken,
@@ -115,12 +116,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		const body_obj = {
 			productPost: productPost,
 			shop_domain: storeUrl,
+			channel_name: channelName,
 			admin_token: adminToken,
 			storefront_token: storefrontToken,
 			stripe_key: stripeKey,
 		};
 
-		const res = await fetch("/wp-json/itmar-ec-relate/v1/save-tokens", {
+		const res = await fetch("/wp-json/itmar-ec-relate/v1/settings/save", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -166,6 +168,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	const [url_editing, setUrlValue] = useState(storeUrl);
 	const [store_editing, setStoreValue] = useState(storefrontToken);
 	const [shopId_editing, setShopId] = useState(shopId);
+	const [channel_editing, setChannel] = useState(channelName);
 	const [headless_editing, setHeadlessValue] = useState(headlessId);
 	const [admin_editing, setAdminValue] = useState(adminToken);
 	const [callback_editing, setCallbackValue] = useState(callbackUrl);
@@ -215,6 +218,14 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						onChange={(newVal) => setShopId(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
 							setAttributes({ shopId: shopId_editing });
+						}}
+					/>
+					<TextControl
+						label={__("Channel Name", "ec-relate-bloks")}
+						value={channel_editing}
+						onChange={(newVal) => setChannel(newVal)} // 一時的な編集値として保存する
+						onBlur={() => {
+							setAttributes({ channelName: channel_editing });
 						}}
 					/>
 					<TextControl

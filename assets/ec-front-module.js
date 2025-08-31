@@ -24,20 +24,14 @@ window.addEventListener("DOMContentLoaded", async () => {
 			// ログアウトして元のページに戻る
 
 			try {
-				const wplogoutRestUrl =
-					"/wp-json/itmar-ec-relate/v1/wp-logout-redirect";
-				const postData = {
-					redirect_url: redirectTo,
-					nonce: itmar_option.nonce,
-				};
 				const response = await sendRegistrationRequest(
-					wplogoutRestUrl,
-					postData,
-					true, // REST API 使用フラグ
+					"/wp-json/itmar-ec-relate/v1/wp-logout-redirect",
+					{ redirect_url: redirectTo, _wpnonce: itmar_option.nonce },
+					"rest",
 				);
 
-				if (response.success && response.data.logout_url) {
-					window.location.href = response.data.logout_url;
+				if (response.success && response.logout_url) {
+					window.location.href = response.logout_url;
 				} else {
 					console.error("ログアウトURLの取得に失敗しました");
 				}
@@ -71,7 +65,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 	try {
 		//トークンの交換用カスタムエンドポイントに送る
 		const tokenChangeUrl =
-			"/wp-json/itmar-ec-relate/v1/customer-token-exchange";
+			"/wp-json/itmar-ec-relate/v1/customer/token-exchange";
 		const postData = {
 			code: code, // Shopify OAuthから返されたコード
 			code_verifier: codeVerifier, // ローカルで保持していた code_verifier
@@ -86,7 +80,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		const token_res = await sendRegistrationRequest(
 			tokenChangeUrl,
 			postData,
-			true,
+			"rest",
 		);
 		if (token_res.success) {
 			//トークンをlocalStrageに記録
@@ -240,7 +234,7 @@ jQuery(function ($) {
 		}
 
 		//カート情報の更新
-		const targetUrl = "/wp-json/itmar-ec-relate/v1/shopify-create-checkout";
+		const targetUrl = "/wp-json/itmar-ec-relate/v1/cart/lines";
 		const cartId = decodeURIComponent(rawCartId);
 
 		const postData = {
@@ -249,7 +243,7 @@ jQuery(function ($) {
 			mode: "bind_cart",
 			nonce: itmar_option.nonce,
 		};
-		const res = await sendRegistrationRequest(targetUrl, postData, true);
+		const res = await sendRegistrationRequest(targetUrl, postData, "rest");
 
 		if (res.success) {
 			const mergedItems = res.cartContents.map((edge) => {
@@ -284,15 +278,14 @@ jQuery(function ($) {
 
 		//カスタマトークンがありカートと紐づけ未了の場合は紐づけ
 		if (accessToken && !res.buyerId) {
-			const targetUrl =
-				"/wp-json/itmar-ec-relate/v1/shopify-cart-customer-bind";
+			const targetUrl = "/wp-json/itmar-ec-relate/v1/cart/bind";
 
 			const postData = {
 				cart_id: cartId,
 				customer_token: accessToken,
 				nonce: itmar_option.nonce,
 			};
-			const res = await sendRegistrationRequest(targetUrl, postData, true);
+			const res = await sendRegistrationRequest(targetUrl, postData, "rest");
 			console.log("CART BINDレスポンス:", res);
 			// 昇格成功後に Cookie を削除する
 			document.cookie =
@@ -330,16 +323,20 @@ jQuery(function ($) {
 		(async () => {
 			try {
 				if (shopId && accessToken) {
-					//const targetUrl ="/wp-json/itmar-ec-relate/v1/shopify-validate-customer";
 					const targetUrl = "/wp-admin/admin-ajax.php";
 					const postData = {
-						action: "shopify-validate-customer",
+						action: "validate-customer",
 						shop_id: shopId,
 						client_id: clientId,
 						customerAccessToken: accessToken,
-						nonce: itmar_option.nonce,
+						_wpnonce: itmar_option.nonce,
 					};
-					const res = await sendRegistrationRequest(targetUrl, postData, false);
+					const res = await sendRegistrationRequest(
+						targetUrl,
+						postData,
+						"ajax",
+					);
+					console.log(res);
 					//本登録の成功(Shopifyログインによるユーザー登録)
 					if (res.success && res.data?.reload) {
 						//一旦リロード
@@ -347,7 +344,7 @@ jQuery(function ($) {
 					}
 
 					//ログインユーザー情報の突き合わせ
-					console.log(res);
+
 					if (res.success) {
 						wp_user_email = res.data.wp_user_mail;
 						//トークンが有効ならユーザー情報が取れるのでそれをセット
@@ -378,7 +375,7 @@ jQuery(function ($) {
 				const itemNum = main_block.data("number_of_items");
 
 				const productData = await apiFetch({
-					path: "/itmar-ec-relate/v1/get-product-info",
+					path: "/itmar-ec-relate/v1/get-product",
 					method: "POST",
 					data: {
 						fields: field_keys,
@@ -393,7 +390,7 @@ jQuery(function ($) {
 				console.log("cartId: ", rawCartId);
 				//商品情報の表示
 				replaceContent(
-					productData,
+					productData.products,
 					wp_user_id,
 					rawCartId,
 					cart_icon_id,
@@ -472,7 +469,7 @@ jQuery(function ($) {
 			cartAnimeClass($target_cart, "exec");
 		}
 
-		const targetUrl = "/wp-json/itmar-ec-relate/v1/shopify-create-checkout";
+		const targetUrl = "/wp-json/itmar-ec-relate/v1/cart/lines";
 		//フォーム内のインプットデータ
 		const formDataObj = targetForm
 			.find('[class*="unit_design_"]') // 条件1: クラス名に unit_design_ を含む
@@ -507,7 +504,7 @@ jQuery(function ($) {
 		// REST APIへPOST送信
 		(async () => {
 			try {
-				const res = await sendRegistrationRequest(targetUrl, postData, true);
+				const res = await sendRegistrationRequest(targetUrl, postData, "rest");
 
 				if (key === "soon_buy") {
 					if (res.checkoutUrl) {
@@ -615,7 +612,6 @@ jQuery(function ($) {
 				);
 
 			//productDataの内容によってレンダリングされたDOM要素からデザインの要素を選択
-
 			for (const [i, product] of productData.entries()) {
 				const first_media = product.media?.edges?.[0]?.node;
 				const first_media_info =

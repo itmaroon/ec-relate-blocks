@@ -19,6 +19,9 @@
 		"shopId": {
 			"type": "string"
 		},
+		"channelName": {
+			"type": "string"
+		},
 		"headlessId": {
 			"type": "string"
 		},

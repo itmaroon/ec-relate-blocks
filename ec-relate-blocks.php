@@ -46,7 +46,7 @@ add_action('enqueue_block_assets', function () {
 	if (!is_admin()) {
 		$script_path = plugin_dir_path(__FILE__) . 'build/ec-front-module.js';
 		wp_enqueue_script(
-			'post_front_handle',
+			'ec_post_front_handle',
 			plugins_url('build/ec-front-module.js?', __FILE__),
 			array('jquery'),
 			filemtime($script_path),

@@ -1,6 +1,5 @@
 import { __ } from "@wordpress/i18n";
 import ShopifyFieldSelector from "../../ShopifyFieldSelector";
-import { useRebuildChangeField } from "../../BrockInserter";
 
 import { PanelBody, PanelRow, RangeControl } from "@wordpress/components";
 import {
@@ -12,7 +11,10 @@ import {
 import { useEffect } from "@wordpress/element";
 import { useSelect } from "@wordpress/data";
 
-import { serializeBlockTree } from "itmar-block-packages";
+import {
+	serializeBlockTree,
+	useRebuildChangeField,
+} from "itmar-block-packages";
 
 import "./editor.scss";
 

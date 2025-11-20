@@ -1,7 +1,6 @@
 import { __ } from "@wordpress/i18n";
 import WebhookSettingsPanel from "./WebhookSettingsPanel";
 import ShopifyFieldSelector from "../../ShopifyFieldSelector";
-import { useRebuildChangeField } from "../../BrockInserter";
 
 import {
 	PanelBody,
@@ -25,6 +24,7 @@ import {
 	isValidUrlWithUrlApi,
 	serializeBlockTree,
 	createBlockTree,
+	useRebuildChangeField,
 } from "itmar-block-packages";
 
 import "./editor.scss";

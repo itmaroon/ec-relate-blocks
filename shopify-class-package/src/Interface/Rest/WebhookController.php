@@ -5,6 +5,8 @@ namespace Itmar\ShopifyClassPackage\Interface\Rest;
 use WP_REST_Server;
 use WP_REST_Request;
 
+if (! defined('ABSPATH')) exit;
+
 final class WebhookController extends BaseController
 {
     public function register(): void

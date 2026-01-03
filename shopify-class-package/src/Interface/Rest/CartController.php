@@ -6,6 +6,8 @@ use WP_REST_Request;
 use WP_REST_Server;
 use Itmar\ShopifyClassPackage\Support\Validation\Sanitizer;
 
+if (! defined('ABSPATH')) exit;
+
 final class CartController extends BaseController
 {
   private Sanitizer $sanitizer;
@@ -78,138 +80,159 @@ final class CartController extends BaseController
 
       //カート情報がないときはクッキーに残っていないか（ゲストカート）がないか確認
       if (!$cartId) {
-        $cartId = $_COOKIE['shopify_cart_id'] ?? null;
+        $cartId = null;
+
+        if (isset($_COOKIE['shopify_cart_id'])) {
+          $cartId = sanitize_text_field(wp_unslash($_COOKIE['shopify_cart_id']));
+        }
       }
       //カート情報の取得用クエリ
-      $CART_FIELDS = <<<GQL
-id
-buyerIdentity { customer { id email } }
-checkoutUrl
-lines(first: 100) {
-  edges {
-    node {
+      $CART_FIELDS = '
       id
-      quantity
-      merchandise {
-        ... on ProductVariant {
-          id
-          title
-		  quantityAvailable
-          price { amount currencyCode }
-          product {
+      buyerIdentity { customer { id email } }
+      checkoutUrl
+      lines(first: 100) {
+        edges {
+          node {
             id
-            title
-            handle
-            featuredImage { url altText }
+            quantity
+            merchandise {
+              ... on ProductVariant {
+                id
+                title
+            quantityAvailable
+                price { amount currencyCode }
+                product {
+                  id
+                  title
+                  handle
+                  featuredImage { url altText }
+                }
+              }
+            }
           }
         }
       }
-    }
-  }
-}
-estimatedCost {
-  subtotalAmount { amount currencyCode }
-  totalAmount    { amount currencyCode }
-  totalTaxAmount { amount currencyCode }
-  totalDutyAmount { amount currencyCode }
-}
-GQL;
+      estimatedCost {
+        subtotalAmount { amount currencyCode }
+        totalAmount    { amount currencyCode }
+        totalTaxAmount { amount currencyCode }
+        totalDutyAmount { amount currencyCode }
+      }';
+
+      $cart_fields = $CART_FIELDS; // 例: 定数にするなら self::CART_FIELDS 推奨
+      $variables   = [];
 
       if ($cartId) {
         if ($mode === 'into_cart' && $variantId) {
-          // 既存カートに追加（cartLinesAdd）
-          $query = <<<GQL
-mutation {
-  cartLinesAdd(
-    cartId: "$cartId",
-    lines: [
-      {
-        merchandiseId: "$variantId",
-        quantity: $quantity
-      }
-    ]
-  ) {
-    cart { {$CART_FIELDS} }
-    userErrors { field message }      
-  }
-}
-GQL;
+
+          $query = 'mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+			cartLinesAdd(cartId: $cartId, lines: $lines) {
+				cart { ' . $cart_fields . ' }
+				userErrors { field message }
+			}
+		}';
+
+          $variables = [
+            'cartId' => (string) $cartId,
+            'lines'  => [
+              [
+                'merchandiseId' => (string) $variantId,
+                'quantity'      => (int) $quantity,
+              ],
+            ],
+          ];
         } elseif ($mode === 'trush_out' && $lineId) {
-          // カートから削除（cartLinesRemove）
-          $query = <<<GQL
-mutation {
-  cartLinesRemove(
-    cartId: "$cartId",
-    lineIds: ["$lineId"]
-  ) {
-    cart { {$CART_FIELDS} }
-    userErrors { field message }
-  }
-}
-GQL;
+
+          $query = 'mutation CartLinesRemove($cartId: ID!, $lineIds: [ID!]!) {
+			cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
+				cart { ' . $cart_fields . ' }
+				userErrors { field message }
+			}
+		}';
+
+          $variables = [
+            'cartId'  => (string) $cartId,
+            'lineIds' => [(string) $lineId],
+          ];
         } elseif ($mode === 'calc_again') {
-          $linesStr = implode(",\n", array_map(function ($line) {
-            return sprintf(
-              '{ id: "%s", quantity: %d }',
-              addslashes($line['id']),
-              intval($line['quantity'])
-            );
-          }, $formDataObj));
-          // カートから削除（cartLinesRemove）
-          $query = <<<GQL
-mutation {
-  cartLinesUpdate(
-    cartId: "$cartId",
-    lines: [{$linesStr}]
-  ) {
-    cart { {$CART_FIELDS} }
-    userErrors { field, message, code }
-    warnings { message }
-  }
-}
-GQL;
+
+          $lines = array_map(
+            static function ($line) {
+              return [
+                'id'       => (string) $line['id'],
+                'quantity' => (int) $line['quantity'],
+              ];
+            },
+            (array) $formDataObj
+          );
+
+          $query = 'mutation CartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+			cartLinesUpdate(cartId: $cartId, lines: $lines) {
+				cart { ' . $cart_fields . ' }
+				userErrors { field message code }
+				warnings { message }
+			}
+		}';
+
+          $variables = [
+            'cartId' => (string) $cartId,
+            'lines'  => $lines,
+          ];
         } else {
-          //カートデータの読み込みのみ
-          $query = <<<GQL
-query {
-  cart(id: "$cartId") {
-    {$CART_FIELDS}
-  }
-}
-GQL;
+
+          $query = 'query CartQuery($cartId: ID!) {
+			cart(id: $cartId) {
+				' . $cart_fields . '
+			}
+		}';
+
+          $variables = [
+            'cartId' => (string) $cartId,
+          ];
         }
       } else {
-        // 新しいカート作成（cartCreate）
-        $query = <<<GQL
-mutation {
-  cartCreate(
-    input: {
-      lines: [
-        {
-          merchandiseId: "$variantId",
-          quantity: $quantity
-        }
-      ]
-    }
-  ) {
-    cart { {$CART_FIELDS} }
-    userErrors { field message }
-  }
-}
-GQL;
+
+        $query = 'mutation CartCreate($lines: [CartLineInput!]!) {
+		cartCreate(input: { lines: $lines }) {
+			cart { ' . $cart_fields . ' }
+			userErrors { field message }
+		}
+	}';
+
+        $variables = [
+          'lines' => [
+            [
+              'merchandiseId' => (string) $variantId,
+              'quantity'      => (int) $quantity,
+            ],
+          ],
+        ];
       }
 
-      //カスタムエンドポイントに問い合わせ
-      $shop_domain = get_option('shopify_shop_domain');
-      $token = get_option('shopify_storefront_token');
-      $response = wp_remote_post("https://{$shop_domain}/api/2025-04/graphql.json", [
-        'headers' => [
-          'X-Shopify-Storefront-Access-Token' => $token,
-          'Content-Type' => 'application/json',
-        ],
-        'body' => json_encode(['query' => $query]),
-      ]);
+      // カスタムエンドポイントに問い合わせ
+      $shop_domain = sanitize_text_field((string) get_option('shopify_shop_domain'));
+      $token       = sanitize_text_field((string) get_option('shopify_storefront_token'));
 
+      $url = esc_url_raw('https://' . $shop_domain . '/api/2025-04/graphql.json');
+
+      $payload = [
+        'query'     => $query,
+        'variables' => $variables,
+      ];
+
+      $response = wp_remote_post(
+        $url,
+        [
+          'headers'     => [
+            'X-Shopify-Storefront-Access-Token' => $token,
+            'Content-Type'                      => 'application/json; charset=utf-8',
+          ],
+          'body'        => wp_json_encode($payload),
+          'data_format' => 'body',
+          'timeout'     => 20,
+        ]
+      );
 
       $data = json_decode(wp_remote_retrieve_body($response), true);
       $cart = $data['data']['cartCreate']['cart']
@@ -275,9 +298,8 @@ GQL;
       ));
     }
 
-    $query = <<<GRAPHQL
-    mutation cartBuyerIdentityUpdate(\$cartId: ID!, \$buyerIdentity: CartBuyerIdentityInput!) {
-      cartBuyerIdentityUpdate(cartId: \$cartId, buyerIdentity: \$buyerIdentity) {
+    $query = 'mutation cartBuyerIdentityUpdate($cartId: ID!, $buyerIdentity: CartBuyerIdentityInput!) {
+      cartBuyerIdentityUpdate(cartId: $cartId, buyerIdentity: $buyerIdentity) {
         cart {
           id
           buyerIdentity {
@@ -292,37 +314,43 @@ GQL;
           message
         }
       }
-    }
-  GRAPHQL;
+    }';
 
     $variables = [
-      'cartId' => $cartId,
+      'cartId'        => (string) $cartId,
       'buyerIdentity' => [
-        'customerAccessToken' => $customerToken
-      ]
+        'customerAccessToken' => (string) $customerToken,
+      ],
     ];
 
-    $shop_domain = get_option('shopify_shop_domain');
-    $access_token   = get_option('shopify_storefront_token');
+    $shop_domain   = sanitize_text_field((string) get_option('shopify_shop_domain'));
+    $access_token  = sanitize_text_field((string) get_option('shopify_storefront_token'));
 
-    $endpoint = "https://{$shop_domain}/api/2025-04/graphql.json";
+    // エンドポイントは文字列結合して esc_url_raw で安全側に
+    $endpoint = esc_url_raw('https://' . $shop_domain . '/api/2025-04/graphql.json');
 
+    $payload = [
+      'query'     => $query,
+      'variables' => $variables,
+    ];
 
-    $response = wp_remote_post($endpoint, [
-      'headers' => [
-        'Content-Type' => 'application/json',
-        'X-Shopify-Storefront-Access-Token' => $access_token,
-      ],
-      'body' => json_encode([
-        'query' => $query,
-        'variables' => $variables
-      ]),
-      'timeout' => 20,
-    ]);
+    $response = wp_remote_post(
+      $endpoint,
+      [
+        'headers'     => [
+          'Content-Type'                      => 'application/json; charset=utf-8',
+          'X-Shopify-Storefront-Access-Token' => $access_token,
+        ],
+        'body'        => wp_json_encode($payload),
+        'data_format' => 'body',
+        'timeout'     => 20,
+      ]
+    );
 
     if (is_wp_error($response)) {
       return $this->fail($response, 500);
     }
+
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
     return $this->ok($body);

@@ -1,6 +1,10 @@
 import apiFetch from "@wordpress/api-fetch";
 import { __ } from "@wordpress/i18n";
-import { displayFormated, sendRegistrationRequest } from "itmar-block-packages";
+import {
+	displayFormated,
+	sendRegistrationRequest,
+	slideBlockSwiperInit,
+} from "itmar-block-packages";
 
 //中継ページのDOMContentLoadedイベントハンドラ（ログイン・ログアウト後の元のページへのリダイレクト）
 window.addEventListener("DOMContentLoaded", async () => {
@@ -336,7 +340,6 @@ jQuery(function ($) {
 						postData,
 						"ajax",
 					);
-					console.log(res);
 					//本登録の成功(Shopifyログインによるユーザー登録)
 					if (res.success && res.data?.reload) {
 						//一旦リロード
@@ -873,7 +876,7 @@ jQuery(function ($) {
 							//新しいswiper-wrapperを追加
 							clone_swiper.append(newWrapper);
 							//swiper初期化
-							slideBlockSwiperInit(clone_swiper);
+							slideBlockSwiperInit(clone_swiper[0]);
 						}
 					});
 				}

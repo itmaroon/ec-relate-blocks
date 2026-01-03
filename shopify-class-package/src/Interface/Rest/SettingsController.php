@@ -6,6 +6,8 @@ use WP_REST_Request;
 use WP_REST_Server;
 use WP_Error;
 
+if (! defined('ABSPATH')) exit;
+
 final class SettingsController extends BaseController
 {
     public function register(): void
@@ -35,16 +37,57 @@ final class SettingsController extends BaseController
                 update_option('product_post', sanitize_text_field($p['productPost']));
             }
 
-            // Shopify
-            foreach (['shop_domain', 'channel_name', 'admin_token', 'storefront_token'] as $k) {
+            // 必須項目は shop_domain / channel_name のみにする
+            foreach (['shop_domain', 'channel_name'] as $k) {
                 if (empty($p[$k])) {
-                    return $this->fail(new WP_Error('missing_params', __('Required parameter missing: ' . $k, 'ec-relate-bloks'), ['status' => 400]), 400);
+                    return $this->fail(
+                        new WP_Error(
+                            'missing_params',
+                            sprintf(
+                                /* translators: %s: parameter name */
+                                __('Required parameter missing: %s', 'ec-relate-blocks'),
+                                sanitize_key($k)
+                            ),
+                            ['status' => 400]
+                        ),
+                        400
+                    );
                 }
             }
             update_option('shopify_shop_domain',      sanitize_text_field($p['shop_domain']));
             update_option('shopify_channel_name',     sanitize_text_field($p['channel_name']));
-            update_option('shopify_admin_token',      sanitize_text_field($p['admin_token']));
-            update_option('shopify_storefront_token', sanitize_text_field($p['storefront_token']));
+            // トークンは「空なら既存維持」「初回未設定なら必須」
+            $token_map = [
+                'admin_token'      => 'shopify_admin_token',
+                'storefront_token' => 'shopify_storefront_token',
+            ];
+            foreach ($token_map as $param_key => $option_key) {
+                $incoming = isset($p[$param_key]) ? trim((string) $p[$param_key]) : null;
+                $current  = (string) get_option($option_key, '');
+
+                // パラメータが送られていない or 空文字 => 更新しない（既存維持）
+                if ($incoming === null || $incoming === '') {
+                    // ただし既存も空なら初回設定としてはエラーにする（必要なら）
+                    if ($current === '') {
+                        return $this->fail(
+                            new WP_Error(
+                                'missing_params',
+                                sprintf(
+                                    /* translators: %s: parameter name */
+                                    __('Required parameter missing: %s', 'ec-relate-blocks'),
+                                    sanitize_key($param_key)
+                                ),
+                                ['status' => 400]
+                            ),
+                            400
+                        );
+                    }
+                    continue;
+                }
+
+                // 値が入っているときだけ更新
+                update_option($option_key, sanitize_text_field($incoming));
+            }
 
             // Stripe
             // if (empty($p['stripe_key'])) {

@@ -2,6 +2,8 @@
 
 namespace Itmar\ShopifyClassPackage\Support;
 
+if (! defined('ABSPATH')) exit;
+
 final class ShopifyGraphQLClient
 {
     private string $shopDomain;
@@ -38,13 +40,21 @@ final class ShopifyGraphQLClient
         ]);
 
         if (is_wp_error($resp)) {
-            throw new \RuntimeException($resp->get_error_message());
+            throw new \RuntimeException(
+                esc_html(
+                    wp_strip_all_tags($resp->get_error_message())
+                )
+            );
         }
         $code = wp_remote_retrieve_response_code($resp);
         $body = json_decode(wp_remote_retrieve_body($resp), true);
 
         if ($code !== 200) {
-            throw new \RuntimeException("GraphQL HTTP {$code}");
+            throw new \RuntimeException(sprintf(
+                /* translators: %d: HTTP status code */
+                esc_html__('GraphQL HTTP %d', 'ec-relate-blocks'),
+                (int) $code
+            ));
         }
         if (isset($body['errors'])) {
             throw new \RuntimeException(

@@ -6,6 +6,8 @@ use WP_Error;
 use WP_REST_Response;
 use Itmar\ShopifyClassPackage\Support\ShopifyGraphQLClient;
 
+if (! defined('ABSPATH')) exit;
+
 abstract class BaseController
 {
     protected const NAMESPACE = 'itmar-ec-relate';
@@ -100,7 +102,14 @@ abstract class BaseController
         return function () use ($capability, $nonceAction, $requireLogin): bool {
             // Nonce チェック
             if ($nonceAction) {
-                $nonce = $_SERVER['HTTP_X_WP_NONCE'] ?? ($_REQUEST['_wpnonce'] ?? '');
+                $nonce = '';
+
+                if (isset($_SERVER['HTTP_X_WP_NONCE'])) {
+                    $nonce = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']));
+                } elseif (isset($_REQUEST['_wpnonce'])) {
+                    $nonce = sanitize_text_field(wp_unslash($_REQUEST['_wpnonce']));
+                }
+
                 if (!wp_verify_nonce($nonce, $nonceAction)) {
                     return false;
                 }

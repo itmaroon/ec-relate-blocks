@@ -7,6 +7,8 @@ use WP_REST_Server;
 use WP_Error;
 use Itmar\ShopifyClassPackage\Support\Security\TokenVault;
 
+if (! defined('ABSPATH')) exit;
+
 final class CustomerController extends BaseController
 {
     public function registerRest(): void
@@ -31,12 +33,12 @@ final class CustomerController extends BaseController
 
         ]]);
 
-        register_rest_route($this->ns(), '/customer/validate', [[
-            'methods'  => \WP_REST_Server::CREATABLE, // POST
-            'callback' => [$this, 'validateCustomer'],
-            // ログイン不要だが REST ノンス必須（admin-ajax 相当の保護）
-            'permission_callback' => $auth,
-        ]]);
+        // register_rest_route($this->ns(), '/customer/validate', [[
+        //     'methods'  => \WP_REST_Server::CREATABLE, // POST
+        //     'callback' => [$this, 'validateCustomer'],
+        //     // ログイン不要だが REST ノンス必須（admin-ajax 相当の保護）
+        //     'permission_callback' => $auth,
+        // ]]);
 
         register_rest_route($this->ns(), '/wp-logout-redirect', [[
             'methods'             => WP_REST_Server::CREATABLE, // POST
@@ -121,7 +123,7 @@ final class CustomerController extends BaseController
                     'is_used' => 0,
                 ],
                 ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d']
-            );
+            ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Insert into custom table; no WP API available.
 
             if (!$result) {
                 wp_send_json_error([['err_code' => 'save_error']]);

@@ -25,10 +25,10 @@
     "headlessId": {
       "type": "string"
     },
-    "adminToken": {
+    "adminTokenMask": {
       "type": "string"
     },
-    "storefrontToken": {
+    "storefrontTokenMask": {
       "type": "string"
     },
     "callbackUrl": {

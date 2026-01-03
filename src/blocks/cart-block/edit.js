@@ -44,10 +44,10 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	];
 	//スタイルの説明
 	const style_disp = [
-		__("For landscape images, odd numbers", "ec-relate-bloks"),
-		__("For landscape images, even numbers", "ec-relate-bloks"),
-		__("For portrait images, odd numbers", "ec-relate-bloks"),
-		__("For portrait images, even numbers", "ec-relate-bloks"),
+		__("For landscape images, odd numbers", "ec-relate-blocks"),
+		__("For landscape images, even numbers", "ec-relate-blocks"),
+		__("For portrait images, odd numbers", "ec-relate-blocks"),
+		__("For portrait images, even numbers", "ec-relate-blocks"),
 	];
 
 	//インナーブロックのひな型を用意
@@ -106,7 +106,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	return (
 		<>
 			<InspectorControls>
-				<PanelBody title={__("Cart setting", "ec-relate-bloks")}>
+				<PanelBody title={__("Cart setting", "ec-relate-blocks")}>
 					<ShopifyFieldSelector
 						fieldType="cart"
 						selectedFields={selectedFields}
@@ -117,7 +117,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					<PanelRow className="itmar_post_blocks_pannel">
 						<RangeControl
 							value={numberOfItems}
-							label={__("Display Num", "query-blocks")}
+							label={__("Display Num", "ec-relate-blocks")}
 							max={30}
 							min={1}
 							onChange={(val) => setAttributes({ numberOfItems: val })}

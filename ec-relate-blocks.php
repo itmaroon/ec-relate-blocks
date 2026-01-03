@@ -26,14 +26,14 @@ if (!function_exists('get_plugin_data')) {
 }
 
 require_once __DIR__ . '/vendor/itmar/loader-package/src/register_autoloader.php';
-$block_entry = new \Itmar\BlockClassPackage\ItmarEntryClass();
+$ec_relate_blocks_entry = new \Itmar\BlockClassPackage\ItmarEntryClass();
 
 (new \Itmar\ShopifyClassPackage\Bootstrap\Plugin())->boot();
 
 //ブロックの初期登録
-add_action('init', function () use ($block_entry) {
+add_action('init', function () use ($ec_relate_blocks_entry) {
 	$plugin_data = get_plugin_data(__FILE__);
-	$block_entry->block_init($plugin_data['TextDomain'], __FILE__);
+	$ec_relate_blocks_entry->block_init($plugin_data['TextDomain'], __FILE__);
 	//ローカライズ
 	wp_localize_script('itmar-script-handle', 'itmar_option', array(
 		'nonce' => wp_create_nonce('wp_rest'),
@@ -140,7 +140,7 @@ function itmar_shopify_webhook_callback(WP_REST_Request $request)
 			['shopify_customer_id' => $shopify_customer_id],
 			['%s'],
 			['%d']
-		);
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Custom table update; no WP API available.
 
 		// 必要なら wp_user に昇格登録してもOK
 	}
@@ -154,15 +154,15 @@ function itmar_shopify_webhook_callback(WP_REST_Request $request)
 
 
 // 依存するプラグインが有効化されているかのアクティベーションフック
-register_activation_hook(__FILE__, function () use ($block_entry) {
+register_activation_hook(__FILE__, function () use ($ec_relate_blocks_entry) {
 	$plugin_data = get_plugin_data(__FILE__);
-	$block_entry->activation_check($plugin_data, ['block-collections']); // ここでメソッドを呼び出し
+	$ec_relate_blocks_entry->activation_check($plugin_data, ['block-collections']); // ここでメソッドを呼び出し
 });
 
 // 管理画面での通知フック
-add_action('admin_notices', function () use ($block_entry) {
+add_action('admin_notices', function () use ($ec_relate_blocks_entry) {
 	$plugin_data = get_plugin_data(__FILE__);
-	$block_entry->show_admin_dependency_notices($plugin_data, ['block-collections']);
+	$ec_relate_blocks_entry->show_admin_dependency_notices($plugin_data, ['block-collections']);
 });
 
 
@@ -181,8 +181,7 @@ function itmar_get_shopify_webhook_list(WP_REST_Request $request)
 	$params = $request->get_json_params();
 	$current_callback_url = sanitize_text_field($params['callbackUrl'] ?? '');
 
-	$query = <<<GQL
-    {
+	$query = '{
       webhookSubscriptions(first: 20) {
         edges {
           node {
@@ -197,8 +196,7 @@ function itmar_get_shopify_webhook_list(WP_REST_Request $request)
           }
         }
       }
-    }
-    GQL;
+    }';
 
 	$response = wp_remote_post("https://{$shop_domain}/admin/api/2025-04/graphql.json", [
 		'headers' => [
@@ -232,25 +230,32 @@ function itmar_get_shopify_webhook_list(WP_REST_Request $request)
 			];
 		} else {
 			// 一致しないURL → 削除
-			$delete_query = <<<GQL
-mutation {
-			  webhookSubscriptionDelete(id: "$id") {
-				userErrors {
-				  field
-				  message
+			$url = "https://{$shop_domain}/admin/api/2025-04/graphql.json";
+			$delete_query = 'mutation webhookSubscriptionDelete($id: ID!) {
+				webhookSubscriptionDelete(id: $id) {
+					userErrors { field message }
+					deletedWebhookSubscriptionId
 				}
-				deletedWebhookSubscriptionId
-			  }
-			}
-GQL;
+			}';
 
-			$delete_response = wp_remote_post("https://{$shop_domain}/admin/api/2025-04/graphql.json", [
-				'headers' => [
-					'X-Shopify-Access-Token' => $admin_token,
-					'Content-Type'           => 'application/json',
+			$payload = [
+				'query'     => $delete_query,
+				'variables' => [
+					'id' => (string) $id,
 				],
-				'body' => json_encode(['query' => $delete_query]),
-			]);
+			];
+			$delete_response = wp_remote_post(
+				$url,
+				[
+					'headers' => [
+						'X-Shopify-Access-Token' => $admin_token,
+						'Content-Type'           => 'application/json; charset=utf-8',
+					],
+					'body'        => wp_json_encode($payload),
+					'data_format' => 'body',
+					'timeout'     => 20,
+				]
+			);
 		}
 	}
 
@@ -266,7 +271,7 @@ function itmar_register_shopify_webhook(WP_REST_Request $request)
 	$callbackUrl = esc_url_raw($params['callbackUrl'] ?? '');
 
 	if (empty($topic) || empty($callbackUrl)) {
-		return new WP_Error('invalid_params', __("Required parameters are missing", "ec-relate-bloks"), ['status' => 400]);
+		return new WP_Error('invalid_params', __("Required parameters are missing", "ec-relate-blocks"), ['status' => 400]);
 	}
 
 	$shop_domain  = get_option('shopify_shop_domain');
@@ -290,7 +295,7 @@ function itmar_register_shopify_webhook(WP_REST_Request $request)
 	]);
 
 	if (is_wp_error($response)) {
-		return new WP_Error('api_error', __("Shopify API Error", "ec-relate-bloks"), $response->get_error_message());
+		return new WP_Error('api_error', __("Shopify API Error", "ec-relate-blocks"), $response->get_error_message());
 	}
 
 	$body = json_decode(wp_remote_retrieve_body($response), true);

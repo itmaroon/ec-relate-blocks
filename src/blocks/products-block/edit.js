@@ -36,8 +36,8 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		shopId,
 		channelName,
 		headlessId,
-		adminToken,
-		storefrontToken,
+		adminTokenMask,
+		storefrontTokenMask,
 		callbackUrl,
 		stripeKey,
 		selectedFields,
@@ -72,10 +72,10 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	];
 	//スタイルの説明
 	const style_disp = [
-		__("For landscape images, odd numbers", "ec-relate-bloks"),
-		__("For landscape images, even numbers", "ec-relate-bloks"),
-		__("For portrait images, odd numbers", "ec-relate-bloks"),
-		__("For portrait images, even numbers", "ec-relate-bloks"),
+		__("For landscape images, odd numbers", "ec-relate-blocks"),
+		__("For landscape images, even numbers", "ec-relate-blocks"),
+		__("For portrait images, odd numbers", "ec-relate-blocks"),
+		__("For portrait images, even numbers", "ec-relate-blocks"),
 	];
 
 	//インナーブロックのひな型を用意
@@ -140,11 +140,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		}
 	}
 
-	//トークン、キー、商品情報ポストタイプの変更があればサーバーに格納
-	useEffect(() => {
-		saveTokens();
-	}, [storeUrl, adminToken, storefrontToken, stripeKey, productPost]);
-
 	//表示フィールド変更によるインナーブロックの再構成
 	const sectionCount = 4;
 	const domType = "form";
@@ -166,13 +161,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 	//編集中の値を確保するための状態変数
 	const [url_editing, setUrlValue] = useState(storeUrl);
-	const [store_editing, setStoreValue] = useState(storefrontToken);
+	const [store_editing, setStoreValue] = useState(storefrontTokenMask);
 	const [shopId_editing, setShopId] = useState(shopId);
 	const [channel_editing, setChannel] = useState(channelName);
 	const [headless_editing, setHeadlessValue] = useState(headlessId);
-	const [admin_editing, setAdminValue] = useState(adminToken);
-	const [callback_editing, setCallbackValue] = useState(callbackUrl);
-	const [stripe_key_editing, setStripeKeyValue] = useState(stripeKey);
+	const [admin_editing, setAdminValue] = useState(adminTokenMask);
+	//const [callback_editing, setCallbackValue] = useState(callbackUrl);
+	//const [stripe_key_editing, setStripeKeyValue] = useState(stripeKey);
 	const [cart_id_editing, setCartIdValue] = useState(cartIconId);
 	//Noticeのインデックス保持
 	const [noticeClickedIndex, setNoticeClickedIndex] = useState(null);
@@ -180,6 +175,9 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	const [isPastWait, setIsPastWait] = useState(false);
 	//ペースト対象のチェック配列
 	const [isCopyChecked, setIsCopyChecked] = useState([]);
+	//wp_optionに保存するための変数
+	const [adminToken, setAdminToken] = useState("");
+	const [storefrontToken, setStorefrontToken] = useState("");
 	//CheckBoxのイベントハンドラ
 	const handleCheckboxChange = (index, newCheckedValue) => {
 		const updatedIsChecked = [...isCopyChecked];
@@ -187,13 +185,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		setIsCopyChecked(updatedIsChecked);
 	};
 
+	//トークン、キー、商品情報ポストタイプの変更があればサーバーに格納
+	useEffect(() => {
+		saveTokens();
+	}, [storeUrl, adminToken, storefrontToken, stripeKey, productPost]);
+
 	return (
 		<>
 			<InspectorControls>
-				<PanelBody title={__("EC setting", "ec-relate-bloks")}>
+				<PanelBody title={__("EC setting", "ec-relate-blocks")}>
 					<ArchiveSelectControl
 						selectedSlug={productPost}
-						label={__("Select Product Post Type", "ec-relate-bloks")}
+						label={__("Select Product Post Type", "ec-relate-blocks")}
 						homeUrl={ec_relate_blocks.home_url}
 						onChange={(postInfo) => {
 							if (postInfo) {
@@ -205,7 +208,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					/>
 
 					<TextControl
-						label={__("Store Site URL", "ec-relate-bloks")}
+						label={__("Store Site URL", "ec-relate-blocks")}
 						value={url_editing}
 						onChange={(newVal) => setUrlValue(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
@@ -213,7 +216,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						}}
 					/>
 					<TextControl
-						label={__("Shop ID", "ec-relate-bloks")}
+						label={__("Shop ID", "ec-relate-blocks")}
 						value={shopId_editing}
 						onChange={(newVal) => setShopId(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
@@ -221,7 +224,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						}}
 					/>
 					<TextControl
-						label={__("Channel Name", "ec-relate-bloks")}
+						label={__("Channel Name", "ec-relate-blocks")}
 						value={channel_editing}
 						onChange={(newVal) => setChannel(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
@@ -229,7 +232,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						}}
 					/>
 					<TextControl
-						label={__("Headless Client ID", "ec-relate-bloks")}
+						label={__("Headless Client ID", "ec-relate-blocks")}
 						value={headless_editing}
 						onChange={(newVal) => setHeadlessValue(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
@@ -237,28 +240,30 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						}}
 					/>
 					<TextControl
-						label={__("Admin API Token", "ec-relate-bloks")}
+						label={__("Admin API Token", "ec-relate-blocks")}
 						value={admin_editing}
 						onChange={(newVal) => setAdminValue(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
-							setAttributes({ adminToken: admin_editing });
+							setAttributes({ adminTokenMask: "********" });
+							setAdminToken(admin_editing);
 						}}
 					/>
 					<TextControl
-						label={__("Storefront API Token", "ec-relate-bloks")}
+						label={__("Storefront API Token", "ec-relate-blocks")}
 						value={store_editing}
 						onChange={(newVal) => setStoreValue(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
-							setAttributes({ storefrontToken: store_editing });
+							setAttributes({ storefrontTokenMask: "**********" });
+							setStorefrontToken(store_editing);
 						}}
 					/>
 
-					<PanelBody
-						title={__("WebHook Setting", "ec-relate-bloks")}
+					{/* <PanelBody
+						title={__("WebHook Setting", "ec-relate-blocks")}
 						initialOpen={true}
 					>
 						<TextControl
-							label={__("WebHook Callback Url", "ec-relate-bloks")}
+							label={__("WebHook Callback Url", "ec-relate-blocks")}
 							value={callback_editing}
 							onChange={(newVal) => setCallbackValue(newVal)} // 一時的な編集値として保存する
 							onBlur={() => {
@@ -267,7 +272,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 										"error",
 										__(
 											"The input string is not in URL format.",
-											"ec-relate-bloks",
+											"ec-relate-blocks",
 										),
 										{ type: "snackbar", isDismissible: true },
 									);
@@ -280,16 +285,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 							}}
 						/>
 						<WebhookSettingsPanel callbackUrl={callbackUrl} />
-					</PanelBody>
+					</PanelBody> */}
 
-					<TextControl
-						label={__("Stripe API Key", "ec-relate-bloks")}
+					{/* <TextControl
+						label={__("Stripe API Key", "ec-relate-blocks")}
 						value={stripe_key_editing}
 						onChange={(newVal) => setStripeKeyValue(newVal)} // 一時的な編集値として保存する
 						onBlur={() => {
 							setAttributes({ stripeKey: stripe_key_editing });
 						}}
-					/>
+					/> */}
 
 					<ShopifyFieldSelector
 						fieldType="product"
@@ -301,7 +306,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					<PanelRow className="itmar_post_blocks_pannel">
 						<RangeControl
 							value={numberOfItems}
-							label={__("Display Num", "query-blocks")}
+							label={__("Display Num", "ec-relate-blocks")}
 							max={30}
 							min={1}
 							onChange={(val) => setAttributes({ numberOfItems: val })}
@@ -309,7 +314,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					</PanelRow>
 					<PanelRow className="itmar_post_blocks_pannel">
 						<TextControl
-							label={__("Cart Icon ID", "ec-relate-bloks")}
+							label={__("Cart Icon ID", "ec-relate-blocks")}
 							value={cart_id_editing}
 							onChange={(newVal) => setCartIdValue(newVal)} // 一時的な編集値として保存する
 							onBlur={() => {
@@ -320,11 +325,11 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 				</PanelBody>
 			</InspectorControls>
 			<InspectorControls group="styles">
-				<PanelBody title={__("Unit Style Copy&Past", "query-blocks")}>
+				<PanelBody title={__("Unit Style Copy&Past", "ec-relate-blocks")}>
 					<div className="itmar_post_block_notice">
 						{blocksAttributesArray.map((styleObj, index) => {
 							const copyBtn = {
-								label: __("Copy", "query-blocks"),
+								label: __("Copy", "ec-relate-blocks"),
 								onClick: () => {
 									//CopyがクリックされたNoticeの順番を記録
 									setNoticeClickedIndex(index);
@@ -334,11 +339,11 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 								label: isPastWait ? (
 									<img
 										src={`${query_blocks.plugin_url}/assets/past-wait.gif`}
-										alt={__("wait", "query-blocks")}
+										alt={__("wait", "ec-relate-blocks")}
 										style={{ width: "36px", height: "36px" }} // サイズ調整
 									/>
 								) : (
-									__("Paste", "query-blocks")
+									__("Paste", "ec-relate-blocks")
 								),
 								onClick: () => {
 									//貼付け中フラグをオン
@@ -383,12 +388,12 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 								noticeClickedIndex === index ? [pastBtn] : [copyBtn];
 							const checkInfo = __(
 								"Check the unit to which you want to paste and press the Paste button.",
-								"query-blocks",
+								"ec-relate-blocks",
 							);
 							const checkContent =
 								noticeClickedIndex != index ? (
 									<CheckboxControl
-										label={__("Paste to", "query-blocks")}
+										label={__("Paste to", "ec-relate-blocks")}
 										checked={isCopyChecked[index]}
 										onChange={(newVal) => {
 											handleCheckboxChange(index, newVal);

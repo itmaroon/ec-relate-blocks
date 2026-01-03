@@ -16,7 +16,7 @@ registerBlockType(metadata.name, {
 	icon: <Cart />,
 	description: __(
 		"We provide blocks to build EC sites in cooperation with various EC companies.",
-		"ec-relate-bloks",
+		"ec-relate-blocks",
 	),
 
 	edit: Edit,

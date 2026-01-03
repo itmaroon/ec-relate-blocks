@@ -9,22 +9,22 @@ export default function WebhookSettingsPanel({ callbackUrl }) {
 
 	const topicOptions = [
 		{
-			label: __("Customer Create", "ec-relate-bloks"),
+			label: __("Customer Create", "ec-relate-blocks"),
 			topic: "CUSTOMERS_CREATE",
 		},
 		{
-			label: __("Customer Update", "ec-relate-bloks"),
+			label: __("Customer Update", "ec-relate-blocks"),
 			topic: "CUSTOMERS_UPDATE",
 		},
 		{
-			label: __("Product Update", "ec-relate-bloks"),
+			label: __("Product Update", "ec-relate-blocks"),
 			topic: "PRODUCTS_UPDATE",
 		},
 		{
-			label: __("Stock Update", "ec-relate-bloks"),
+			label: __("Stock Update", "ec-relate-blocks"),
 			topic: "INVENTORY_LEVELS_UPDATE",
 		},
-		{ label: __("Orders Create", "ec-relate-bloks"), topic: "ORDERS_CREATE" },
+		{ label: __("Orders Create", "ec-relate-blocks"), topic: "ORDERS_CREATE" },
 	];
 
 	useEffect(() => {
@@ -84,7 +84,7 @@ export default function WebhookSettingsPanel({ callbackUrl }) {
 				))
 			)}
 			<Button variant="secondary" onClick={loadExistingWebhooks}>
-				{__("Reload", "ec-relate-bloks")}
+				{__("Reload", "ec-relate-blocks")}
 			</Button>
 		</>
 	);
@@ -110,7 +110,7 @@ async function fetchShopifyWebhooks(callbackUrl) {
 	} else {
 		dispatch("core/notices").createNotice(
 			"error",
-			__("Webhook list retrieval error", "ec-relate-bloks"),
+			__("Webhook list retrieval error", "ec-relate-blocks"),
 			{ type: "snackbar", isDismissible: true },
 		);
 		return [];
@@ -139,14 +139,14 @@ async function registerShopifyWebhook(callbackUrl, topic) {
 	if (res.ok && json.success) {
 		dispatch("core/notices").createNotice(
 			"success",
-			__("Webhook registration successful", "ec-relate-bloks"),
+			__("Webhook registration successful", "ec-relate-blocks"),
 			{ type: "snackbar", isDismissible: true },
 		);
 		return { success: true, id: json.id };
 	} else {
 		dispatch("core/notices").createNotice(
 			"error",
-			__("Webhook registration failed", "ec-relate-bloks"),
+			__("Webhook registration failed", "ec-relate-blocks"),
 			{ type: "snackbar", isDismissible: true },
 		);
 
@@ -175,14 +175,14 @@ async function deleteShopifyWebhook(webhook_id) {
 	if (res.ok && json.success) {
 		dispatch("core/notices").createNotice(
 			"success",
-			__("Webhook Delete Success", "ec-relate-bloks"),
+			__("Webhook Delete Success", "ec-relate-blocks"),
 			{ type: "snackbar", isDismissible: true },
 		);
 		return { success: true, deleted_id: json.deleted_id };
 	} else {
 		dispatch("core/notices").createNotice(
 			"error",
-			__("Webhook Delete failed", "ec-relate-bloks"),
+			__("Webhook Delete failed", "ec-relate-blocks"),
 			{ type: "snackbar", isDismissible: true },
 		);
 		return { success: false, errors: json };

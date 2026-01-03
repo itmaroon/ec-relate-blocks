@@ -7,6 +7,8 @@ use Itmar\ShopifyClassPackage\Interface\Rest\CustomerController;
 use Itmar\ShopifyClassPackage\Interface\Rest\ProductController;
 use Itmar\ShopifyClassPackage\Interface\Rest\SettingsController;
 
+if (! defined('ABSPATH')) exit;
+
 final class Plugin
 {
     public function boot(): void

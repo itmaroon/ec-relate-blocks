@@ -6,6 +6,8 @@ use WP_REST_Request;
 use WP_REST_Server;
 use WP_Error;
 
+if (! defined('ABSPATH')) exit;
+
 final class ProductController extends BaseController
 {
     /**
@@ -52,47 +54,45 @@ final class ProductController extends BaseController
     {
         try {
             $fieldTemplates = [
-                'title'          => 'title',
-                'handle'         => 'handle',
-                'description'    => 'description',
+                'title'           => 'title',
+                'handle'          => 'handle',
+                'description'     => 'description',
                 'descriptionHtml' => 'descriptionHtml',
-                'vendor'         => 'vendor',
-                'productType'    => 'productType',
-                'tags'           => 'tags',
-                'onlineStoreUrl' => 'onlineStoreUrl',
-                'createdAt'      => 'createdAt',
-                'updatedAt'      => 'updatedAt',
-                'medias'         => <<<GQL
-media(first: 250) {
-  edges {
-    node {
-      mediaContentType
-      ... on MediaImage {
-        image { url altText width height }
-      }
-      ... on Video {
-        alt
-        sources { url format mimeType width height }
-      }
-    }
-  }
-}
-GQL,
-                'variants'       => <<<GQL
-variants(first: 10) {
-  edges {
-    node {
-      id
-      title
-      availableForSale
-      quantityAvailable
-      price { amount currencyCode }
-      compareAtPrice { amount currencyCode }
-    }
-  }
-}
-GQL,
+                'vendor'          => 'vendor',
+                'productType'     => 'productType',
+                'tags'            => 'tags',
+                'onlineStoreUrl'  => 'onlineStoreUrl',
+                'createdAt'       => 'createdAt',
+                'updatedAt'       => 'updatedAt',
+                'medias'          => 'media(first: 250) {
+                edges {
+                node {
+                    mediaContentType
+                    ... on MediaImage {
+                    image { url altText width height }
+                    }
+                    ... on Video {
+                    alt
+                    sources { url format mimeType width height }
+                    }
+                }
+                }
+            }',
+
+                'variants'        => 'variants(first: 10) {
+                edges {
+                node {
+                    id
+                    title
+                    availableForSale
+                    quantityAvailable
+                    price { amount currencyCode }
+                    compareAtPrice { amount currencyCode }
+                }
+                }
+            }',
             ];
+
 
             $shopDomain   = (string) get_option('shopify_shop_domain');
             $storefrontTk = (string) get_option('shopify_storefront_token');
@@ -122,26 +122,40 @@ GQL,
 
             $graphqlFieldStr = implode("\n", array_map(fn($f) => $fieldTemplates[$f], $selected));
 
-            $query = <<<GQL
-{
-  products(first: {$itemNum}, sortKey: CREATED_AT, reverse: true) {
-    edges {
-      node {
-        {$graphqlFieldStr}
-      }
-    }
-  }
-}
-GQL;
-
-            $resp = wp_remote_post("https://{$shopDomain}/api/2025-04/graphql.json", [
-                'headers' => [
-                    'Content-Type'                         => 'application/json',
-                    'X-Shopify-Storefront-Access-Token'    => $storefrontTk,
+            // 数値は Int として渡す
+            $payload = [
+                'query' => 'query Products($first: Int!) {
+                    products(first: $first, sortKey: CREATED_AT, reverse: true) {
+                    edges {
+                        node {
+                        ' . $graphqlFieldStr . '
+                        }
+                    }
+                    }
+                }',
+                'variables' => [
+                    'first' => (int) $itemNum,
                 ],
-                'body'    => wp_json_encode(['query' => $query]),
-                'timeout' => 20,
-            ]);
+            ];
+
+            // ドメイン/トークンは安全側に
+            $shopDomain    = sanitize_text_field((string) $shopDomain);
+            $storefrontTk  = sanitize_text_field((string) $storefrontTk);
+
+            $endpoint = esc_url_raw('https://' . $shopDomain . '/api/2025-04/graphql.json');
+
+            $resp = wp_remote_post(
+                $endpoint,
+                [
+                    'headers'     => [
+                        'Content-Type'                      => 'application/json; charset=utf-8',
+                        'X-Shopify-Storefront-Access-Token' => $storefrontTk,
+                    ],
+                    'body'        => wp_json_encode($payload),
+                    'data_format' => 'body',
+                    'timeout'     => 20,
+                ]
+            );
 
             if (is_wp_error($resp)) {
                 return $this->fail($resp, 500);
@@ -428,7 +442,7 @@ GQL;
 
             // ギャラリー or アイキャッチ
             $images = [];
-            $gallery = function_exists('get_field') ? get_field('gallary', $postId) : null; // ACF 前提なら存在確認
+            $gallery = function_exists('get_field') ? get_field('gallery', $postId) : null; // ACF 前提なら存在確認
             $thumbId = get_post_thumbnail_id($postId);
             if ($gallery && is_array($gallery)) {
                 foreach ($gallery as $img) {
@@ -488,7 +502,11 @@ GQL;
                 return $n['id'];
             }
         }
-        throw new \RuntimeException("Publication '{$publicationName}' が見つかりません。");
+        throw new \RuntimeException(sprintf(
+            /* translators: %s: publication name */
+            esc_html__('Publication "%s" not found.', 'ec-relate-blocks'),
+            esc_html($publicationName)
+        ));
     }
 
     /** ★ 商品を ACTIVE に（公開前の安全策） */

@@ -48,16 +48,16 @@
         },
         {
             "name": "itmar/loader-package",
-            "version": "v1.1.0",
+            "version": "v1.2.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/itmaroon/loader-package.git",
-                "reference": "9b4ff033396e2c96b84b191b6f3e897f57400c2e"
+                "reference": "0327c311f2a057912e62ffb36f9bc16e5af59b0a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/itmaroon/loader-package/zipball/9b4ff033396e2c96b84b191b6f3e897f57400c2e",
-                "reference": "9b4ff033396e2c96b84b191b6f3e897f57400c2e",
+                "url": "https://api.github.com/repos/itmaroon/loader-package/zipball/0327c311f2a057912e62ffb36f9bc16e5af59b0a",
+                "reference": "0327c311f2a057912e62ffb36f9bc16e5af59b0a",
                 "shasum": ""
             },
             "type": "library",
@@ -79,22 +79,22 @@
             "description": "This package provides the ability to load classes via Composer's PSR-4 configuration without relying on the autoloader. This is useful when you want to avoid class conflicts between loaders in multiple plugins.",
             "support": {
                 "issues": "https://github.com/itmaroon/loader-package/issues",
-                "source": "https://github.com/itmaroon/loader-package/tree/v1.1.0"
+                "source": "https://github.com/itmaroon/loader-package/tree/v1.2.2"
             },
-            "time": "2025-05-03T12:36:23+00:00"
+            "time": "2025-12-01T05:31:51+00:00"
         },
         {
             "name": "stripe/stripe-php",
-            "version": "v17.3.0",
+            "version": "v17.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/stripe/stripe-php.git",
-                "reference": "cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c"
+                "reference": "a6219df5df1324a0d3f1da25fb5e4b8a3307ea16"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c",
-                "reference": "cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c",
+                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/a6219df5df1324a0d3f1da25fb5e4b8a3307ea16",
+                "reference": "a6219df5df1324a0d3f1da25fb5e4b8a3307ea16",
                 "shasum": ""
             },
             "require": {
@@ -138,9 +138,9 @@
             ],
             "support": {
                 "issues": "https://github.com/stripe/stripe-php/issues",
-                "source": "https://github.com/stripe/stripe-php/tree/v17.3.0"
+                "source": "https://github.com/stripe/stripe-php/tree/v17.6.0"
             },
-            "time": "2025-05-28T18:59:29+00:00"
+            "time": "2025-08-27T19:32:42+00:00"
         }
     ],
     "packages-dev": [],

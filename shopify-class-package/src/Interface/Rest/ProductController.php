@@ -301,7 +301,8 @@ final class ProductController extends BaseController
         $title       = get_the_title($postId);
         $description = get_the_excerpt($postId);
         $imageUrl    = get_the_post_thumbnail_url($postId, 'full');
-        $price       = get_post_meta($postId, 'price', true) ?: '0';
+        $price       = get_post_meta($postId, 'prices_sales_price', true) ?: '0';
+        $regular_price = get_post_meta($postId, 'prices_list_price', true) ?: '0';
         $quantity    = get_post_meta($postId, 'quantity', true) ?: '0';
 
         // Shopify 接続情報
@@ -312,7 +313,8 @@ final class ProductController extends BaseController
 
         // バリアント
         $variant = [
-            'price'                => $price,
+            'price'                => (string) $price,
+            'compare_at_price'     => (string) $regular_price,
             'option1'              => 'Default Title',
             'inventory_management' => 'shopify',
             'inventory_policy'     => 'deny',
@@ -440,16 +442,17 @@ final class ProductController extends BaseController
                 ]);
             }
 
-            // ギャラリー or アイキャッチ
+            // ギャラリー と アイキャッチ
             $images = [];
             $gallery = function_exists('get_field') ? get_field('gallery', $postId) : null; // ACF 前提なら存在確認
             $thumbId = get_post_thumbnail_id($postId);
+            if ($thumbId) {
+                $images[] = (int)$thumbId;
+            }
             if ($gallery && is_array($gallery)) {
                 foreach ($gallery as $img) {
                     if (isset($img['id'])) $images[] = (int)$img['id'];
                 }
-            } elseif ($thumbId) {
-                $images[] = (int)$thumbId;
             }
 
             foreach ($images as $attachmentId) {
@@ -486,65 +489,97 @@ final class ProductController extends BaseController
     /** ★ Publication ID を名前から解決（Online Store は固定ID -1 を使用） */
     private function resolvePublicationId(string $publicationName = 'Online Store'): string
     {
-        if ($publicationName === 'Online Store') {
+        if ('Online Store' === $publicationName) {
             return 'gid://shopify/Publication/-1';
         }
-        $q = <<<'GQL'
-query($first:Int!){
-  publications(first:$first){
-    nodes{ id name }
-  }
-}
-GQL;
+
+        $q = 'query($first: Int!) {
+            publications(first: $first) {
+                nodes { id name }
+            }
+        }';
+
         $data = $this->gql($q, ['first' => 50]);
+
         foreach ($data['publications']['nodes'] ?? [] as $n) {
             if (($n['name'] ?? '') === $publicationName) {
-                return $n['id'];
+                return (string) $n['id'];
             }
         }
-        throw new \RuntimeException(sprintf(
-            /* translators: %s: publication name */
-            esc_html__('Publication "%s" not found.', 'ec-relate-blocks'),
-            esc_html($publicationName)
-        ));
+
+        throw new \RuntimeException(
+            sprintf(
+                /* translators: %s: publication name */
+                esc_html__('Publication "%s" not found.', 'ec-relate-blocks'),
+                esc_html($publicationName)
+            )
+        );
     }
+
 
     /** ★ 商品を ACTIVE に（公開前の安全策） */
     private function ensureProductActive(int $productId): void
     {
-        $gid = "gid://shopify/Product/{$productId}";
-        $m = <<<'GQL'
-mutation SetActive($id: ID!) {
-  productUpdate(input: { id: $id, status: ACTIVE }) {
-    product { id status }
-    userErrors { field message }
-  }
-}
-GQL;
+        $gid = 'gid://shopify/Product/' . (int) $productId;
+
+        $m = 'mutation SetActive($id: ID!) {
+            productUpdate(input: { id: $id, status: ACTIVE }) {
+                product { id status }
+                userErrors { field message }
+            }
+        }';
+
         $res = $this->gql($m, ['id' => $gid]);
-        if (!empty($res['productUpdate']['userErrors'])) {
-            throw new \RuntimeException('productUpdate: ' . wp_json_encode($res['productUpdate']['userErrors'], JSON_UNESCAPED_UNICODE));
+
+        if (! empty($res['productUpdate']['userErrors'])) {
+            $errors_json = wp_json_encode($res['productUpdate']['userErrors'], JSON_UNESCAPED_UNICODE);
+
+            throw new \RuntimeException(
+                sprintf(
+                    /* translators: %s: userErrors JSON */
+                    esc_html__('productUpdate failed: %s', 'ec-relate-blocks'),
+                    esc_html((string) $errors_json)
+                )
+            );
         }
     }
+
 
     /** ★ 指定販売チャネルに公開（publishablePublish） */
     private function publishToChannel(int $productId, string $publicationName = 'Online Store'): void
     {
         $this->ensureProductActive($productId);
+
         $publicationId = $this->resolvePublicationId($publicationName);
-        $gid = "gid://shopify/Product/{$productId}";
-        $m = <<<'GQL'
-mutation($pid:ID!, $pub:ID!){
-  publishablePublish(id:$pid, input:{publicationId:$pub}) {
-    userErrors{ field message }
-  }
-}
-GQL;
-        $res = $this->gql($m, ['pid' => $gid, 'pub' => $publicationId]);
-        if (!empty($res['publishablePublish']['userErrors'])) {
-            throw new \RuntimeException('publishablePublish: ' . wp_json_encode($res['publishablePublish']['userErrors'], JSON_UNESCAPED_UNICODE));
+        $gid           = 'gid://shopify/Product/' . (int) $productId;
+
+        $m = 'mutation($pid: ID!, $pub: ID!) {
+            publishablePublish(id: $pid, input: { publicationId: $pub }) {
+                userErrors { field message }
+            }
+        }';
+
+        $res = $this->gql(
+            $m,
+            [
+                'pid' => $gid,
+                'pub' => (string) $publicationId,
+            ]
+        );
+
+        if (! empty($res['publishablePublish']['userErrors'])) {
+            $errors_json = wp_json_encode($res['publishablePublish']['userErrors'], JSON_UNESCAPED_UNICODE);
+
+            throw new \RuntimeException(
+                sprintf(
+                    /* translators: %s: userErrors JSON */
+                    esc_html__('publishablePublish failed: %s', 'ec-relate-blocks'),
+                    esc_html((string) $errors_json)
+                )
+            );
         }
     }
+
 
     //Shopify の商品ステータス更新ヘルパ
     private function updateShopifyProductStatus(string $productId, string $status): void

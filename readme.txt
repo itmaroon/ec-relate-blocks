@@ -1,6 +1,6 @@
 === EC RELATE BLOCKS ===
 Contributors:      itmaroon
-Tags:              shopify, ecommerce, checkout, inventory, cart, blocks, gutenberg, site-editor
+Tags:              shopify, ecommerce, checkout, inventory, cart
 Requires at least: 6.4
 Tested up to:      6.9
 Stable tag:        0.1.0
@@ -163,9 +163,15 @@ APIs used (depending on your configuration/features enabled):
 * Shopify Storefront API (product/cart/checkout flow)
 * Shopify Customer Account API / OAuth endpoints (optional customer login)
 
-Data that may be sent to Shopify (examples):
+Data that may be sent to Shopify:
 * Store domain, channel name, and API credentials (server-side)
-* Product data needed for creation/update (title, description/excerpt, images, price, inventory quantity; depends on your settings)
+* Product data required for creating/updating products (title, description, image, sales price, list price, quantity in stock)
+- The title is the title of the post data sent.
+- The description is an excerpt of the post data sent.
+- The image is the featured image, if one is set. Furthermore, if the ACF custom field has a gallery field named gallery, images in that field will also be added.
+- The sales price is the price set in the prces group set in the ACF custom field if sales_price is set as a member.
+- The list price is the price set in the above group if list_price is set.
+- The stock quantity is set as the default quantity if quantity is set in the ACF custom field. However, this does not reflect your sales history in Shopify, so do not use it outside of the initial setup.
 * Cart line items (variant IDs and quantities)
 * Customer authentication and identity linkage (OAuth code exchange, customer access tokens when enabled)
 

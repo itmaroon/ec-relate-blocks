@@ -305,8 +305,13 @@ final class CustomerController extends BaseController
             $shopify_cart_id = $wp_user_id ? get_user_meta($wp_user_id, 'shopify_cart_id', true) : '';
 
             // 3) 入力
-            $shop_id        = isset($params['shop_id']) ? trim((string)$params['shop_id']) : '';
-            $client_id      = isset($params['client_id']) ? trim((string)$params['client_id']) : '';
+            $shop_id = isset($params['shop_id'])
+                ? sanitize_text_field(wp_unslash((string) $params['shop_id']))
+                : '';
+            $client_id = isset($params['client_id'])
+                ? sanitize_text_field(wp_unslash((string) $params['client_id']))
+                : '';
+
             // フロントで "customerAccessToken" を送ってくる想定（名称は誤解を避けて要リネーム）
             $customer_token = isset($params['customerAccessToken']) ? sanitize_text_field((string)$params['customerAccessToken']) : '';
 
@@ -315,28 +320,34 @@ final class CustomerController extends BaseController
             }
 
             // 4) Shopify Customer API 呼び出しクロージャ
-            $fetch_customer = function (string $access_token) use ($shop_id) {
-                $endpoint = "https://shopify.com/{$shop_id}/account/customer/api/2025-04/graphql";
-                $query = <<<'GQL'
-                query {
-                  customer {
-                    id
-                    emailAddress { emailAddress }
-                    firstName
-                    lastName
-                  }
-                }
-            GQL;
+            $fetch_customer = static function (string $access_token) use ($shop_id) {
+                $endpoint = esc_url_raw(
+                    'https://shopify.com/' . rawurlencode($shop_id) . '/account/customer/api/2025-04/graphql'
+                );
 
-                return wp_remote_post($endpoint, [
-                    'headers' => [
-                        'Content-Type'  => 'application/json',
-                        'Authorization' => $access_token, // "Bearer xxx" 形式ならそのまま
-                    ],
-                    'body'    => wp_json_encode(['query' => $query]),
-                    'timeout' => 20,
-                ]);
+                $query = 'query {
+                    customer {
+                        id
+                        emailAddress { emailAddress }
+                        firstName
+                        lastName
+                    }
+                }';
+
+                return wp_remote_post(
+                    $endpoint,
+                    [
+                        'headers'     => [
+                            'Content-Type'  => 'application/json; charset=utf-8',
+                            'Authorization' => (string) $access_token, // "Bearer xxx" 形式ならそのまま
+                        ],
+                        'body'        => wp_json_encode(['query' => $query]),
+                        'data_format' => 'body',
+                        'timeout'     => 20,
+                    ]
+                );
             };
+
 
             // 5) まずはクライアント送信トークンで照会
             $response     = $customer_token ? $fetch_customer($customer_token) : null;
